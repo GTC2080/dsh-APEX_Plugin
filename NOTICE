@@ -1,18 +1,51 @@
-dsh-minimal-max retains a byte-identical v0.1 copy of the DeepSeek Harness
-Minimal agent composition and derives its v0.2 Minimal/Standard composition
-rows from:
+DSH APEX Plugin derives its versioned preset compositions and runtime design
+from the following reviewed sources.
+
+Code baselines
+--------------
+
+DeepSeek Harness Minimal and Standard agent compositions:
 
   https://github.com/deepseek-ai/deepseek-harness
   commit 74bd5f76ba8035639bf5b4f94ce0449187ca5489
 
-The v0.2 anchored promotion/tool-gating design and Windows Git Bash
-compatibility tool are adapted from the reviewed source at:
+Minimal Max v0.2 anchored promotion, tool gating, and Windows Git Bash
+compatibility were adapted from:
 
   https://github.com/xiaobright/dsh-anchored-standard
   commit d97bec91a3d668f4cf1d03ee5f20aae84fb6f85c
 
-Both upstream projects are distributed under the MIT License. The full MIT
-permission notice is included in this repository's LICENSE file.
+The APEX v0.3 design was reviewed against the later Anchored Standard state:
+
+  https://github.com/xiaobright/dsh-anchored-standard
+  commit db4527a2a70a9032d3a8525ce3c0ea6ef528d6fc
+
+The compact post-anchor APEX policy adapts the minimal-necessary,
+reuse-first, and YAGNI principles from:
+
+  https://github.com/DietrichGebert/ponytail
+  commit 2ed6c52c9d7e5e56942508591085fd45dea277d3
+
+These code sources are distributed under the MIT License. The MIT permission
+notice used by this project is included in LICENSE.
+
+Research and design references
+------------------------------
+
+The first-request anchoring hypothesis and evaluation design were informed by:
+
+  https://github.com/xiaobright/modeltest
+  commit 04255b55f16c4439e538239fb9783070c4165081
+
+The decision to keep mode classification and extra model calls outside the
+v0.3 anchor was informed by:
+
+  https://github.com/yjh051108/dsh-routing-suite
+  commit a09eb0ade28e6ec3b8e5eb22985a14f6bfa1fbe5
+
+These two repositories are cited as research and design references; APEX v0.3
+does not copy their evaluation text, keyword classifier, injector, or router
+implementation.
 
 DeepSeek and DeepSeek Harness are names of their respective owner. This
 community project is not affiliated with or endorsed by DeepSeek.

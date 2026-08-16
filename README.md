@@ -1,58 +1,83 @@
 # DSH APEX Plugin
 
-本仓库仅用于开发 DeepSeek Harness 的 APEX 插件。当前已经完成并可运行的实验基线是
-Minimal Max v0.2；在 APEX v0.3 的路由与约束机制完成前，包名和 preset id 继续保留
-`dsh-minimal-max` 与 `minimal-max-v2`，避免把尚未实现的能力标记为已完成。
+APEX 是一个 DeepSeek Harness 实验 preset。它先用官方 Minimal 的首请求形状锚定模型轨迹，
+再在模型完成第一次动作后加入精简执行约束，并通过一个常驻发现工具按需开放 Standard
+能力。目标是减少无关 prompt、工具 schema、代码和 token，同时保留完成复杂任务所需的工具。
 
-## 当前基线：Minimal Max v0.2
+当前版本是 **APEX v0.3**。它是可测试的实验版本，不代表已经证明 DeepSeek V4.1b 在所有
+任务上都优于官方 Minimal 或 Standard。
 
-Minimal Max v0.2 是一个 DeepSeek Harness 实验 preset：每个顶层会话的第一条模型请求
-严格保持官方 Minimal 的 prompt 与双工具形状；出现第一条持久化的模型回复或工具调用
-后，再进入一个小型常驻工具集，并通过 `dev_tool_search` 按需解锁 Standard 工具。
+## 可选 preset
 
-> v0.2 已验证请求结构、持久晋级、恢复和压缩后的重新锚定。它还没有证明 DeepSeek
-> V4.1b 在所有题目上都获得更高成功率；模型能力需要独立、重复的 A/B 评测。
+| Preset id | 界面名称 | 用途 |
+| --- | --- | --- |
+| `apex-v03` | APEX v0.3（实验） | Minimal 锚定 + 一次性 APEX 策略 + 按需 Standard 工具 |
+| `minimal-max-v2` | Minimal Max v0.2（实验） | 不含 APEX 策略的稳定对照组 |
 
-## 核心行为
+升级到 v0.3 不会覆盖或改写 `minimal-max-v2`。包名暂时继续使用 `dsh-minimal-max`，以保持
+现有 DSH profile 的插件升级路径稳定；对用户显示的产品名称和新 preset 已改为 APEX。
+
+## APEX v0.3 如何工作
 
 ```text
 新顶层会话
-  -> 第一次模型请求：Minimal prompt + bash + str_replace_editor
+  -> 请求 1：官方 Minimal persona + bash + str_replace_editor
   -> 首次 assistant/message 或 tool/call 写入 session log
+  -> 注入一次精简 APEX 策略
   -> 常驻：bash + str_replace_editor + dev_tool_search
   -> dev_tool_search(toolNames=[...])
-  -> 下一次模型请求加入已确认存在的 Standard 工具
+  -> 下一次请求加入已确认存在的 Standard 工具
   -> compaction/end
   -> 新锚定周期，再次从 Minimal 双工具开始
 ```
 
-- 首请求 system prompt 是完整的
-  `You are a helpful software engineer assistant.`，并保持 `complete: true`、
-  `includeRuntimeContext: false`。
-- 首请求会过滤 `agent-instructions` 与 `skill-catalog`，不会偷偷把 Standard 上下文带入
-  Minimal 锚点。
-- 晋级状态和工具解锁只从 DSH 的持久 session event 重建，不依赖进程内缓存；重启或恢复
-  会话后仍能得到同一状态。
-- `agent-instructions` 在晋级后恢复；`skill-catalog` 只在显式解锁 `skill` 后恢复。
-- 子 agent 保留完整工具目录，避免隐藏其汇报或委派所需能力。
-- 安装器只创建 `minimal-max-v2`，不覆盖 v0.1 的 `minimal-max` 或任何同名用户内容。
+首请求的 system prompt 仍然只有：
 
-研究与实现依据：
+```text
+You are a helpful software engineer assistant.
+```
 
-- [V4.1b 触发机制实验](https://github.com/xiaobright/modeltest/blob/main/docs/v4.1/DEEPSEEK_V4_TRIGGER_MECHANISM_EXPERIMENTS_20260814.md)
-- [dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard)
-- [DeepSeek Harness 官方 preset](https://github.com/deepseek-ai/deepseek-harness/tree/main/apps/cli/config/agent-presets)
-- [DeepSeek Harness 插件开发文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)
+并保持 `complete: true`、`includeRuntimeContext: false`。首请求会过滤
+`agent-instructions` 和 `skill-catalog`，APEX 策略也不会在这一轮出现。
 
-当前组合对应 DeepSeek Harness commit
-`74bd5f76ba8035639bf5b4f94ce0449187ca5489`，锚定实现的审查基线见
-[NOTICE](./NOTICE)。
+晋级后，APEX 只添加一条带来源标记的 user-role instructions 消息；它会写入 session log，
+因此同一锚定周期无需在每个请求重复注入。策略要求模型：
+
+- 在正确位置做满足需求的最小可靠改动。
+- 依次优先复用现有代码、平台能力、标准库和已有依赖。
+- 只为下一项具体工作解锁所需工具。
+- 避免推测性抽象、依赖、配置、脚手架、重复探索和无意义测试。
+- 不牺牲安全、错误处理、兼容性和必要验证。
+
+晋级、解锁和重新锚定都由持久 session events 重建，不依赖进程内缓存。恢复会话后状态
+一致；`compaction/end` 会清空旧解锁并开始新的 Minimal 锚定周期。子 agent 保留完整工具
+目录，并在首请求获得精简 APEX 策略，避免隐藏其汇报或委派能力。
+
+## 为什么 v0.3 没有复制完整 routing-suite
+
+V4.1b 的首请求工具形状会影响后续轨迹。若在首请求内加入关键词分类、额外路由 prompt 或
+大量工具 schema，就同时改变了要验证的 Minimal 锚点。因此 v0.3 采用更小的能力路由：
+首请求不分类，晋级后由 `dev_tool_search` 根据下一项具体需要开放工具。
+
+本版明确不包含：
+
+- 额外 LLM 路由调用。
+- spec/react/weak 关键词分类器。
+- super-injector、热重载或运行时覆写 Harness 源码。
+- 自动调用子 agent 或工作流。
+- “所有任务都能提升模型能力”的结论。
+
+这些能力只有在 A/B 数据证明当前门控不足时才会进入后续版本。
 
 ## 要求
 
 - Node.js `>=22.19.0`
-- 与上述基线兼容的 DeepSeek Harness
+- 与固定基线兼容的 DeepSeek Harness
 - Windows 额外要求 Git Bash 的 `bash.exe` 可从 `PATH` 找到
+
+当前审查基线对应 DeepSeek Harness commit
+`74bd5f76ba8035639bf5b4f94ce0449187ca5489`。完整来源与固定 commit 见
+[NOTICE](./NOTICE)。
 
 ## 安装与升级
 
@@ -72,15 +97,15 @@ pnpm dsh plugin --profile web add /path/to/dsh-APEX_Plugin
 pnpm dsh web
 ```
 
-启动日志应出现：
+启动日志应同时出现：
 
 ```text
-[dsh-minimal-max] installed and mount-validated preset "minimal-max-v2"
+[dsh-apex] installed and mount-validated preset "minimal-max-v2"
+[dsh-apex] installed and mount-validated preset "apex-v03"
 ```
 
-相同内容已存在时状态为 `existing`。从 v0.1 升级不会改写旧 preset；如果仍保留 v0.1，
-Web UI 中可同时看到旧的“Minimal Max（实验）”与新的“Minimal Max v0.2（实验）”。
-请为 v0.2 新建会话，因为 preset 不会重组已有会话。
+相同内容已存在时，`installed` 会显示为 `existing`。安装器只创建缺失目录，不覆盖同名
+用户内容；若新复制的 preset 挂载失败，只回滚该目录。
 
 确认 bundle 已进入 profile：
 
@@ -88,32 +113,33 @@ Web UI 中可同时看到旧的“Minimal Max（实验）”与新的“Minimal 
 dsh --profile web --dump-config
 ```
 
-输出应包含 `minimal-max-preset-installer` 和 `dsh-minimal-max`。
+输出应包含 `minimal-max-preset-installer` 和 `dsh-minimal-max`。随后在 Web UI 新建会话并
+选择“APEX v0.3（实验）”。preset 不会重组已有会话，所以旧会话不会自动切换到 v0.3。
 
-## 使用按需工具
+## 使用 Standard 工具
 
-普通任务直接描述需求即可。晋级后，模型能看到 `dev_tool_search` 的能力索引，并应在需要
-联网、技能、目标、子 agent、工作流、后台任务或 Standard 文件工具时先调用它。
+通常只需直接描述任务。第一轮之后，模型会看到 `dev_tool_search` 的能力索引；当任务需要
+联网、技能、目标、子 agent、工作流、后台任务或 Standard 文件工具时，应先解锁对应工具，
+而不是用 `bash` 模拟缺失能力。
 
-按精确名称解锁联网搜索的等价调用是：
+知道精确名称时，一次调用即可解锁，例如：
 
 ```json
 {"toolNames":["web_search"]}
 ```
 
-不知道工具名时，先搜索再解锁：
+不知道名称时先搜索：
 
 ```json
 {"query":"filesystem grep"}
 ```
 
-搜索结果只返回最多 20 个匹配工具及其简述，不会把所有 schema 塞进每次请求。随后再次
-调用 `dev_tool_search`，将所需精确名称放入 `toolNames`。解锁从下一条模型请求生效，并
-持续到本次 compaction；压缩后按新锚定周期重新解锁。
+搜索最多返回 20 个匹配工具及其首行说明，不会把完整 Standard schema 放进每个请求。
+解锁从下一条模型请求生效，并持续到本次 compaction。
 
-## 自动测试
+## 自动验证
 
-插件没有第三方开发依赖，不需要 `npm install`：
+插件没有第三方开发依赖，不需要运行 `npm install`：
 
 ```sh
 cd /path/to/dsh-APEX_Plugin
@@ -121,15 +147,14 @@ npm test
 npm run check
 ```
 
-测试覆盖：
+验证覆盖：
 
-1. bundle manifest、无安装时脚本和精简发布文件。
-2. v0.1 POSIX 基线与官方 Minimal 逐字节一致。
-3. v0.2 包含当前 Standard package rows，但请求时只暴露阶段允许的 schema。
-4. 首轮双工具、文本回复晋级、工具调用晋级、按需解锁和非法解锁输入。
-5. session resume、compaction 后重新锚定、子 agent 目录与自动上下文过滤。
-6. 安装幂等、内容冲突拒绝、符号链接拒绝、挂载失败回滚和平台判断。
-7. Windows Git Bash fallback 的参数 schema、子进程调用和输入错误。
+1. v0.2 基线保持不变，官方 Minimal composition 仍逐字节匹配固定基线。
+2. APEX 首请求只有官方 Minimal system prompt 与双工具。
+3. APEX 策略在首请求缺席、晋级后只注入一次、compaction 后重新进入新周期。
+4. Standard package rows、常驻工具、显式解锁、恢复和子 agent 行为。
+5. 两个 preset 的幂等安装、内容冲突拒绝、符号链接拒绝、挂载失败隔离回滚。
+6. macOS、Linux 和 Windows 的组合路径，以及 Windows Git Bash fallback contract。
 
 如果插件与 Harness 不在默认相邻目录，可指定 checkout：
 
@@ -137,67 +162,68 @@ npm run check
 DSH_CHECKOUT=/path/to/deepseek-harness npm test
 ```
 
-## 隔离集成测试
+### 隔离挂载验证
 
-不要使用日常 DSH home 做安装试验。将测试 home 放到专用测试目录：
+不要用日常 DSH home 做安装试验：
 
 ```sh
-DSH_TEST_ROOT=/path/to/test-directory
-DSH_TEST_HOME="$(mktemp -d "$DSH_TEST_ROOT/minimal-max-v0.2-home.XXXXXX")"
-DSH_HOME="$DSH_TEST_HOME" dsh plugin --profile web add /path/to/dsh-APEX_Plugin
-DSH_HOME="$DSH_TEST_HOME" dsh --profile web --dump-config
-DSH_HOME="$DSH_TEST_HOME" dsh web
+TEST_ROOT=/path/to/test-directory
+TEST_HOME="$(mktemp -d "$TEST_ROOT/apex-v0.3-home.XXXXXX")"
+DSH_HOME="$TEST_HOME" dsh plugin --profile web add /path/to/dsh-APEX_Plugin
+DSH_HOME="$TEST_HOME" dsh --profile web --dump-config
+DSH_HOME="$TEST_HOME" dsh web --port 0
 ```
 
-检查：
+检查 `.agent-presets/apex-v03/` 是否包含 composition、策略模块和三个跨平台运行模块，并在
+新会话中确认请求工具序列：
 
-1. 启动日志报告 `minimal-max-v2` 已安装并通过挂载校验。
-2. `$DSH_TEST_HOME/.agent-presets/minimal-max-v2/` 含 composition 与三个运行模块。
-3. 新建会话时可以选择“Minimal Max v0.2（实验）”。
-4. 第一条模型请求只有 `bash` 与 `str_replace_editor`。
-5. 第一条回复后出现 `dev_tool_search`，解锁的工具从下一条请求开始出现。
+```text
+1. bash + str_replace_editor
+2. bash + dev_tool_search + str_replace_editor
+3. 第二步显式解锁的工具
+```
 
-## 模型性能评测
+## 模型能力评测
 
-结构正确与模型性能是两个验收层。推荐比较：
+结构正确与模型能力是两个独立验收层。推荐使用四组盲测：
 
 - A：官方 `minimal`
 - B：`minimal-max-v2`
-- C：官方 `standard`
+- C：`apex-v03`
+- D：官方 `standard`
 
-保持同一模型端点、版本、推理强度、max tokens、workspace、题目和权限。每次使用全新
-会话，每组至少重复 10 次，记录完成率、首个动作、工具参数合法率、返工次数、输入/输出
-token、延迟和错误。先比较 A/B 首请求，再比较 B 在需要 Standard 工具时是否能稳定发现、
-解锁并完成任务；不要用单次成功宣称性能提升。
+保持同一模型端点、版本、推理强度、max tokens、题目、workspace 初始状态和权限。每次使用
+全新会话，每组至少重复 10 次，并记录：完成率、硬性需求覆盖率、首个动作、工具参数合法率、
+返工次数、输入/输出 token、延迟和错误。比较 B/C 可以单独判断 APEX 策略的净影响；比较
+A/B 可以判断工具锚定的影响；D 是完整 Standard 对照。不要以单次成功宣称普遍提升。
 
 ## 已知边界
 
-- v0.2 是 Anchored Standard 的最小可验证阶段，不包含 routing-suite 的模式分类、UI、
-  super-injector，也不包含最终 APEX 的 Code / Cordis 路由。
-- 当前不会把 Ponytail 规则写入模型 prompt；Ponytail 仅用于约束本插件实现复杂度，避免
-  在性能基线稳定前新增另一项实验变量。
-- Windows Git Bash 每次调用是新进程，不保留 shell 状态，也不应用 Harness OS sandbox；
-  当前只有跨平台 contract test，仍需真实 Windows 主机端到端验证。
-- Harness 升级若改变 Minimal 或 Standard composition，基线测试会有意失败，必须先审查
-  差异再升级。
-- 删除 bundle 不会自动删除用户 preset。请先停止 DSH，再通过 preset 管理能力显式删除
-  不再使用的 `minimal-max-v2`。
+- v0.3 的“路由”是晋级后的按需能力路由，不是完整任务模式分类器。
+- APEX 策略是新的实验变量，必须通过 B/C 重复评测判断收益与副作用。
+- Windows fallback 每次调用是新进程，不保留 shell 状态，也不应用 Harness OS sandbox；
+  已有跨平台 contract，仍需真实 Windows 主机端到端验证。
+- Harness 升级若改变 Minimal 或 Standard composition，基线测试会有意失败，必须审查差异
+  后再升级。
+- 删除 bundle 不会自动删除用户 preset。停止 DSH 后，再通过 preset 管理能力显式删除不再
+  使用的 `apex-v03` 或 `minimal-max-v2`。
 
-## 致谢
+## 研究依据与致谢
 
-感谢以下社区作者和项目为 APEX 的研究与设计提供公开成果和灵感：
+- [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)：提供最小必要实现、
+  YAGNI 和复杂度约束思路。
+- [xiaobright/modeltest](https://github.com/xiaobright/modeltest)：提供 V4.1b 首请求工具形状与
+  轨迹触发实验。
+- [xiaobright/dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard)：
+  提供 Minimal 锚定、持久晋级和按需工具门控基础。
+- [yjh051108/dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite)：提供将模式选择
+  放在首请求之外、避免污染已承诺轨迹的路由设计启发。
+- [DeepSeek Harness 官方 preset](https://github.com/deepseek-ai/deepseek-harness/tree/main/apps/cli/config/agent-presets)
+  与[插件开发文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)。
 
-- [DietrichGebert](https://github.com/DietrichGebert) 的
-  [ponytail](https://github.com/DietrichGebert/ponytail)：启发了最小必要实现、YAGNI 与
-  复杂度约束原则。
-- [xiaobright](https://github.com/xiaobright) 的
-  [modeltest](https://github.com/xiaobright/modeltest) 与
-  [dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard)：提供了
-  V4.1b 触发机制实验和 Minimal 锚定、按阶段开放工具的研究基础。
-- [yjh051108](https://github.com/yjh051108) 的
-  [dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite)：为任务路由与模式组合
-  提供了设计灵感。
+感谢以上作者和项目公开实验、代码与设计思路。APEX 是独立社区项目，不隶属于 DeepSeek，
+也不代表 DeepSeek 官方背书。
 
 ## 许可证
 
-MIT。上游来源与固定 commit 见 [NOTICE](./NOTICE)。
+MIT。第三方来源、采用范围与固定 commit 见 [NOTICE](./NOTICE)。
