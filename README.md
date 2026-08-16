@@ -183,6 +183,21 @@ token、延迟和错误。先比较 A/B 首请求，再比较 B 在需要 Standa
 - 删除 bundle 不会自动删除用户 preset。请先停止 DSH，再通过 preset 管理能力显式删除
   不再使用的 `minimal-max-v2`。
 
+## 致谢
+
+感谢以下社区作者和项目为 APEX 的研究与设计提供公开成果和灵感：
+
+- [DietrichGebert](https://github.com/DietrichGebert) 的
+  [ponytail](https://github.com/DietrichGebert/ponytail)：启发了最小必要实现、YAGNI 与
+  复杂度约束原则。
+- [xiaobright](https://github.com/xiaobright) 的
+  [modeltest](https://github.com/xiaobright/modeltest) 与
+  [dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard)：提供了
+  V4.1b 触发机制实验和 Minimal 锚定、按阶段开放工具的研究基础。
+- [yjh051108](https://github.com/yjh051108) 的
+  [dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite)：为任务路由与模式组合
+  提供了设计灵感。
+
 ## 许可证
 
 MIT。上游来源与固定 commit 见 [NOTICE](./NOTICE)。
