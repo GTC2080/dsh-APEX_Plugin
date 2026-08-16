@@ -13,6 +13,7 @@ const posixComposition = join(projectRoot, 'presets', 'posix', 'agent.cordis.yml
 const v2Composition = join(projectRoot, 'presets', 'v2', 'agent.cordis.yml')
 const apexComposition = join(projectRoot, 'presets', 'apex-v03', 'agent.cordis.yml')
 const apexV04Composition = join(projectRoot, 'presets', 'apex-v04', 'agent.cordis.yml')
+const apexV041Composition = join(projectRoot, 'presets', 'apex-v041', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
@@ -48,12 +49,13 @@ async function missingStandardPackages(composition) {
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.4.0')
+  assert.equal(manifest.version, '0.4.1')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
   assert.equal(manifest.dependencies, undefined)
   assert.equal(manifest.files.includes('presets/apex-v04'), true)
+  assert.equal(manifest.files.includes('presets/apex-v041'), true)
   assert.match(
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
@@ -74,6 +76,19 @@ test('APEX v0.3 composition preserves the Minimal anchor and adds only a post-an
 
 test('APEX v0.4 preserves the Minimal anchor and adds post-anchor policy plus a tool guard', async () => {
   const content = await readFile(apexV04Composition, 'utf8')
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/execution-guard\.mjs/)
+  assert.match(content, /name: \.\/dev-tool-search\.mjs/)
+  assert.match(content, /name: \.\/apex-policy\.mjs/)
+  assert.match(content, /name: \.\/windows-bash\.mjs/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-str-replace-editor'/)
+})
+
+test('APEX v0.4.1 preserves the Minimal anchor and composes the hard research guard', async () => {
+  const content = await readFile(apexV041Composition, 'utf8')
   assert.match(content, /text: You are a helpful software engineer assistant\./)
   assert.match(content, /complete: true/)
   assert.match(content, /includeRuntimeContext: false/)
@@ -143,10 +158,33 @@ test('APEX v0.3 tree remains byte-identical to the released baseline', async () 
   }
 })
 
+test('APEX v0.4 tree remains byte-identical to the tested baseline', async () => {
+  const expected = {
+    'agent.cordis.yml': '73da2f73911dd99c0432f08fcc3842cf8585f037d0e6044c0ea10cc0ec477200',
+    'apex-policy.mjs': '52f9200d8757b3ea6ff1e3214fcf0e770a935077b1cf6b18fbe4602afe75976c',
+    'dev-tool-search.mjs': 'fa4ab846a9857fb23e8e5aa82d53ed3b1745bae47fb85ef1a928c68fed782db0',
+    'execution-guard.mjs': 'a10b8fcddc3e758ba43b1892497408a7e1d288b742d2f3a04ffa1314aae68074',
+    'preset.yml': '1d725b4f3f8f4f67ab7e1acace6b2b8e650ee0fdd6bb880af3d1545fe12598cd',
+    'tool-gate.mjs': '497c7056ced88ef15b50006d8c057c0290e0c0ef2fb3278b20ee6e40718de922',
+    'windows-bash.mjs': '55323a7fd5574572a9486f2fdd34285f347c2412cfff9cf4c6d49b0f43a92c36',
+  }
+  for (const [file, digest] of Object.entries(expected)) {
+    const content = await readFile(join(projectRoot, 'presets', 'apex-v04', file))
+    assert.equal(createHash('sha256').update(content).digest('hex'), digest, file)
+  }
+})
+
 test('APEX v0.4 reuses the released Windows fallback', async () => {
   assert.equal(
     await readFile(join(projectRoot, 'presets', 'apex-v04', 'windows-bash.mjs'), 'utf8'),
     await readFile(join(projectRoot, 'presets', 'apex-v03', 'windows-bash.mjs'), 'utf8'),
+  )
+})
+
+test('APEX v0.4.1 reuses the released Windows fallback', async () => {
+  assert.equal(
+    await readFile(join(projectRoot, 'presets', 'apex-v041', 'windows-bash.mjs'), 'utf8'),
+    await readFile(join(projectRoot, 'presets', 'apex-v04', 'windows-bash.mjs'), 'utf8'),
   )
 })
 
@@ -171,6 +209,14 @@ test(
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV04Composition), [])
+  },
+)
+
+test(
+  'APEX v0.4.1 carries every current Standard package row before request-time filtering',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    assert.deepEqual(await missingStandardPackages(apexV041Composition), [])
   },
 )
 

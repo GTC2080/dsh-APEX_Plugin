@@ -1,0 +1,278 @@
+/** Discover and lease allowlisted Standard tools without exposing every schema. */
+
+import { currentEpochEvents, UNLOCK_META_KIND } from './tool-gate.mjs'
+import {
+  BASE_WEB_SEARCH_CALLS,
+  MAX_RESEARCH_EXTENSION_CALLS,
+  MAX_WEB_SEARCH_CALLS,
+} from './execution-guard.mjs'
+
+export const name = 'apex-dev-tool-search'
+export const inject = ['tools']
+
+const MAX_RESULTS = 20
+const MAX_QUERY_CHARS = 200
+const MAX_REQUESTED_TOOLS = 1
+const MAX_TOOL_NAME_CHARS = 128
+const MAX_RESEARCH_GAP_CHARS = 240
+
+export const UNLOCKABLE_TOOL_NAMES = Object.freeze([
+  'ask_user_question',
+  'create_goal',
+  'edit',
+  'exit_plan_mode',
+  'get_goal',
+  'glob',
+  'grep',
+  'interrupt_agent',
+  'job_kill',
+  'job_list',
+  'job_output',
+  'list_agents',
+  'pwsh',
+  'ralph',
+  'read',
+  'read_image',
+  'send_message',
+  'skill',
+  'subagent',
+  'subagent_fork',
+  'todo_write',
+  'update_goal',
+  'web_search',
+  'workflow',
+  'write',
+])
+
+const UNLOCKABLE = new Set(UNLOCKABLE_TOOL_NAMES)
+
+const CAPABILITY_INDEX = [
+  'read / write / edit / read_image / glob / grep — sandboxed filesystem work',
+  'web_search — internet research',
+  'skill — load an available workflow skill',
+  'create_goal / get_goal / update_goal — long-running goals',
+  'subagent / subagent_fork — delegate work',
+  'workflow / ralph — orchestrated multi-agent work',
+  'job_list / job_output / job_kill — background jobs',
+  'todo_write / ask_user_question — task and user interaction',
+].join('\n- ')
+
+function requestedNames(value) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value
+    .filter((item) => typeof item === 'string' && item.length > 0 && item.length <= MAX_TOOL_NAME_CHARS)
+    .slice(0, MAX_REQUESTED_TOOLS))]
+}
+
+function firstLine(value) {
+  return (typeof value === 'string' ? value : '').split('\n', 1)[0].slice(0, 120)
+}
+
+function previousMatches(agent) {
+  const matches = new Set()
+  for (const event of currentEpochEvents(agent?.session?.events)) {
+    if (event.type !== 'tool/result' || event.data?.meta?.kind !== UNLOCK_META_KIND) continue
+    const matchedTools = event.data.meta.matchedTools
+    if (!Array.isArray(matchedTools)) continue
+    for (const toolName of matchedTools) {
+      if (typeof toolName === 'string' && UNLOCKABLE.has(toolName)) matches.add(toolName)
+    }
+  }
+  return matches
+}
+
+function parsedArguments(event) {
+  if (typeof event.data?.arguments !== 'string') return {}
+  try {
+    const value = JSON.parse(event.data.arguments)
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  } catch {
+    return {}
+  }
+}
+
+function normalizedWebQuery(value) {
+  return typeof value === 'string'
+    ? value.trim().toLowerCase().replace(/\s+/g, ' ')
+    : ''
+}
+
+function webSearchQueries(agent) {
+  const queries = new Set()
+  for (const event of currentEpochEvents(agent?.session?.events)) {
+    if (event.type !== 'tool/call' || event.data?.name !== 'web_search') continue
+    const query = normalizedWebQuery(parsedArguments(event).query)
+    if (query.length > 0) queries.add(query)
+  }
+  return queries
+}
+
+function previousApprovedWebQueries(agent) {
+  const queries = new Set()
+  for (const event of currentEpochEvents(agent?.session?.events)) {
+    if (event.type !== 'tool/result' || event.data?.meta?.kind !== UNLOCK_META_KIND) continue
+    const values = event.data.meta.approvedWebQueries
+    if (!Array.isArray(values)) continue
+    for (const value of values.slice(0, MAX_RESEARCH_EXTENSION_CALLS)) {
+      const query = normalizedWebQuery(value)
+      if (query.length > 0 && query.length <= MAX_QUERY_CHARS) queries.add(query)
+    }
+  }
+  return queries
+}
+
+function matchingSchemas(schemas, query) {
+  const tokens = [...new Set(query.toLowerCase().split(/[^a-z0-9_]+/).filter(Boolean))]
+  if (tokens.length === 0) return []
+  return schemas
+    .map((schema) => {
+      const haystack = `${schema.name} ${schema.description ?? ''}`.toLowerCase()
+      return { schema, score: tokens.filter((token) => haystack.includes(token)).length }
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.schema.name.localeCompare(right.schema.name))
+    .slice(0, MAX_RESULTS)
+    .map((entry) => entry.schema)
+}
+
+/** Register the single resident discovery tool. */
+export function apply(ctx) {
+  ctx.tools.register({
+    name: 'dev_tool_search',
+    description: [
+      'Search and unlock allowlisted Standard tools that are not in the current minimal catalog.',
+      'Search first, then unlock at most one exact name returned by an earlier search in this task.',
+      'Unlock only the capability needed for the next concrete step; do not emulate it with bash.',
+      `- ${CAPABILITY_INDEX}`,
+      `A task starts with ${BASE_WEB_SEARCH_CALLS} web_search calls. If a required fact remains unsupported, request one additional distinct query with researchGap and nextWebQuery; repeat only as evidence requires, up to ${MAX_WEB_SEARCH_CALLS} total calls.`,
+      'Never infer exact official facts from forks or third-party summaries. Delegation and orchestration cannot replace a research continuation after the default web budget is used.',
+    ].join('\n'),
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        query: {
+          type: 'string',
+          maxLength: MAX_QUERY_CHARS,
+          description: 'Keywords such as "web", "skill", or "subagent".',
+        },
+        toolNames: {
+          type: 'array',
+          maxItems: MAX_REQUESTED_TOOLS,
+          items: {
+            type: 'string',
+            minLength: 1,
+            maxLength: MAX_TOOL_NAME_CHARS,
+          },
+          description: 'One exact allowlisted name returned by an earlier search in this task.',
+        },
+        researchGap: {
+          type: 'string',
+          minLength: 1,
+          maxLength: MAX_RESEARCH_GAP_CHARS,
+          description: 'The exact required fact not supported by evidence collected so far.',
+        },
+        nextWebQuery: {
+          type: 'string',
+          minLength: 1,
+          maxLength: MAX_QUERY_CHARS,
+          description: 'One distinct next web_search query that directly targets researchGap.',
+        },
+      },
+      required: [],
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          text: { type: 'string' },
+          matchedTools: { type: 'array', items: { type: 'string' } },
+          unlockedTools: { type: 'array', items: { type: 'string' } },
+          approvedWebQueries: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['text', 'matchedTools', 'unlockedTools', 'approvedWebQueries'],
+      },
+      render: (_args, value) => [{ type: 'text', text: value.text }],
+      presentationMeta: (_args, value) => ({
+        kind: UNLOCK_META_KIND,
+        matchedTools: value.matchedTools,
+        unlockedTools: value.unlockedTools,
+        approvedWebQueries: value.approvedWebQueries,
+      }),
+    },
+    async execute(args, exec) {
+      const schemas = ctx.tools.schemas(exec.agent)
+      const unlockableSchemas = schemas.filter((schema) => UNLOCKABLE.has(schema.name))
+      const byName = new Map(unlockableSchemas.map((schema) => [schema.name, schema]))
+      const researchGap = typeof args.researchGap === 'string'
+        ? args.researchGap.trim().slice(0, MAX_RESEARCH_GAP_CHARS)
+        : ''
+      const nextWebQuery = typeof args.nextWebQuery === 'string'
+        ? args.nextWebQuery.trim().slice(0, MAX_QUERY_CHARS)
+        : ''
+      const extensionRequested = researchGap.length > 0 || nextWebQuery.length > 0
+      const requested = extensionRequested ? [] : requestedNames(args.toolNames)
+      const discovered = previousMatches(exec.agent)
+      const disallowed = requested.filter((toolName) => !UNLOCKABLE.has(toolName))
+      const unavailable = requested.filter((toolName) => UNLOCKABLE.has(toolName) && !byName.has(toolName))
+      const notDiscovered = requested.filter((toolName) => byName.has(toolName) && !discovered.has(toolName))
+      const accepted = requested.filter((toolName) => byName.has(toolName) && discovered.has(toolName))
+      const query = !extensionRequested && typeof args.query === 'string'
+        ? args.query.trim().slice(0, MAX_QUERY_CHARS)
+        : ''
+      const matches = query.length > 0 ? matchingSchemas(unlockableSchemas, query) : []
+      const approvedWebQueries = []
+
+      const lines = []
+      if (extensionRequested) {
+        if (typeof args.query === 'string' || Array.isArray(args.toolNames)) {
+          lines.push('Research continuation is separate from catalog search and tool unlock; catalog fields were ignored.')
+        }
+        const used = webSearchQueries(exec.agent)
+        const previouslyApproved = previousApprovedWebQueries(exec.agent)
+        const unused = [...previouslyApproved].filter((approved) => !used.has(approved))
+        const normalizedNext = normalizedWebQuery(nextWebQuery)
+        if (researchGap.length === 0 || normalizedNext.length === 0) {
+          lines.push('Provide both researchGap and nextWebQuery to request one continuation.')
+        } else if (used.size < BASE_WEB_SEARCH_CALLS) {
+          lines.push(`Use the ${BASE_WEB_SEARCH_CALLS} default web_search calls before requesting a continuation.`)
+        } else if (unused.length > 0) {
+          lines.push('Use the previously approved web_search query before requesting another continuation.')
+        } else if (previouslyApproved.size >= MAX_RESEARCH_EXTENSION_CALLS) {
+          lines.push(`No continuation available: the absolute ${MAX_WEB_SEARCH_CALLS}-call web_search limit is reached.`)
+        } else if (used.has(normalizedNext) || previouslyApproved.has(normalizedNext)) {
+          lines.push('nextWebQuery must be distinct from every used or previously approved query in this task.')
+        } else {
+          approvedWebQueries.push(nextWebQuery)
+          lines.push(`Approved one additional web_search query for this task: ${nextWebQuery}`)
+          lines.push(`Research gap: ${researchGap}`)
+        }
+      }
+      if (accepted.length > 0) lines.push(`Unlocked for the next request: ${accepted.join(', ')}`)
+      if (disallowed.length > 0) lines.push(`Not permitted by the APEX allowlist: ${disallowed.join(', ')}`)
+      if (unavailable.length > 0) lines.push(`Allowlisted but unavailable tools: ${unavailable.join(', ')}`)
+      if (notDiscovered.length > 0) {
+        lines.push(`Search before unlocking in this task: ${notDiscovered.join(', ')}`)
+      }
+
+      if (query.length > 0) {
+        if (matches.length === 0) {
+          lines.push(`No allowlisted tools match "${query}".`)
+        } else {
+          lines.push(`Matching tools (${matches.length}):`)
+          for (const schema of matches) lines.push(`- ${schema.name}: ${firstLine(schema.description)}`)
+          lines.push('Call dev_tool_search again with toolNames containing one exact name above.')
+        }
+      }
+
+      if (lines.length === 0) lines.push('Provide query to search or one previously discovered toolName to unlock.')
+      return {
+        text: lines.join('\n'),
+        matchedTools: matches.map((schema) => schema.name),
+        unlockedTools: accepted,
+        approvedWebQueries,
+      }
+    },
+  })
+}

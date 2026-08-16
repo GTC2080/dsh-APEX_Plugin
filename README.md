@@ -5,33 +5,35 @@ APEX 是一个 DeepSeek Harness 实验 preset。它让每个真实用户任务�
 开放 Standard 能力。目标是减少无关 prompt、工具 schema、代码和 token，同时保留完成复杂
 任务所需的工具。
 
-当前版本是 **APEX v0.4**。它是可测试的实验版本，不代表已经证明 DeepSeek V4.1b 在所有
+当前版本是 **APEX v0.4.1**。它是可测试的实验版本，不代表已经证明 DeepSeek V4.1b 在所有
 任务上都优于官方 Minimal 或 Standard。
 
 ## 可选 preset
 
 | Preset id | 界面名称 | 用途 |
 | --- | --- | --- |
+| `apex-v041` | APEX v0.4.1（实验） | v0.4 + 自适应研究租约 + Standard 工具白名单 |
 | `apex-v04` | APEX v0.4（实验） | 按任务动态提升 + 压缩恢复 + 跨平台 Guard/验证 |
 | `apex-v03` | APEX v0.3（实验） | Minimal 锚定 + 一次性 APEX 策略 + 按需 Standard 工具 |
 | `minimal-max-v2` | Minimal Max v0.2（实验） | 不含 APEX 策略的稳定对照组 |
 
-升级到 v0.4 不会覆盖或改写 `apex-v03` 或 `minimal-max-v2`。包名暂时继续使用
+升级到 v0.4.1 不会覆盖或改写 `apex-v04`、`apex-v03` 或 `minimal-max-v2`。包名暂时继续使用
 `dsh-minimal-max`，以保持现有 DSH profile 的插件升级路径稳定；对用户显示的产品名称和
 新 preset 使用 APEX。
 
-## APEX v0.4 如何工作
+## APEX v0.4.1 如何工作
 
 ```text
 每条真人 user/message
   -> 清除上一任务的临时解锁，开始新的任务锚点
   -> 请求 1：官方 Minimal persona + bash + str_replace_editor
-  -> 每次 shell 执行前：拒绝已知的宽泛名称终止命令
+  -> 每次工具执行前：拒绝宽泛名称终止、重复研究和超预算研究
   -> 首次 assistant/message 或 tool/call 写入 session log
   -> 当前任务动态晋级并注入一次有界验证与交付 APEX 策略
   -> 常驻：bash + str_replace_editor + dev_tool_search
-  -> dev_tool_search(toolNames=[...])
-  -> 下一次请求加入已确认存在的 Standard 工具
+  -> dev_tool_search(query=...) 发现白名单内的候选
+  -> dev_tool_search(toolNames=[一个已发现名称])
+  -> 只有成功 tool/result 的租约会让下一次请求加入该 Standard 工具
   -> 下一条真人 user/message 或 compaction/end
   -> 新任务/压缩恢复周期，再次从 Minimal 双工具开始
 ```
@@ -68,10 +70,22 @@ policy。子 agent 保留完整工具目录，并在首请求获得精简 APEX �
 这里的“按任务动态提升”是一个可复现的事件状态机，不是关键词猜测：每个任务都先锚定，
 只有当前任务真的继续执行时才晋级；额外 Standard 工具仍由模型针对具体步骤显式解锁。
 
-## 为什么 v0.4 没有复制完整 routing-suite
+v0.4.1 把真实测试中失控的研究路径从软提示升级为执行前硬约束：每个任务默认有三次
+`web_search`，工具目录发现最多四次；规范化后相同的查询在第二次就会被拒绝。如果三次后仍有
+明确的证据缺口，模型必须通过 `dev_tool_search` 说明 `researchGap` 并提交一条不重复的
+`nextWebQuery`；成功结果只发放该查询的一次性租约。可按证据缺口逐次续额，单任务绝对上限为十次；
+不得从 fork 或第三方摘要推断官方
+URL、标题、版本等精确事实；仓库 URL 的大小写应以权威页面标题或 clone 命令为准，
+不照搬搜索结果链接的偶然大小写。被拒绝的调用
+仍保留审计结果，但不会执行工具体，也不会生成解锁租约。默认 Web 预算用尽后，同一任务内也不能再解锁或执行
+`subagent`、`subagent_fork`、`workflow`、`ralph` 或 `send_message` 绕过研究预算；本地实现工具保持可用。
+预算和租约都从持久 session events
+重建，并在下一条真人消息或 `compaction/end` 后清零。
+
+## 为什么 v0.4.1 没有复制完整 routing-suite
 
 V4.1b 的首请求工具形状会影响后续轨迹。若在首请求内加入关键词分类、额外路由 prompt 或
-大量工具 schema，就同时改变了要验证的 Minimal 锚点。因此 v0.4 用真人消息划分任务，
+大量工具 schema，就同时改变了要验证的 Minimal 锚点。因此 v0.4.1 用真人消息划分任务，
 不读取任务关键词；晋级后由 `dev_tool_search` 根据下一项具体需要开放工具。
 
 本版明确不包含：
@@ -118,6 +132,7 @@ pnpm dsh web
 [dsh-apex] installed and mount-validated preset "minimal-max-v2"
 [dsh-apex] installed and mount-validated preset "apex-v03"
 [dsh-apex] installed and mount-validated preset "apex-v04"
+[dsh-apex] installed and mount-validated preset "apex-v041"
 ```
 
 相同内容已存在时，`installed` 会显示为 `existing`。安装器只创建缺失目录，不覆盖同名
@@ -130,11 +145,11 @@ dsh --profile web --dump-config
 ```
 
 输出应包含 `minimal-max-preset-installer` 和 `dsh-minimal-max`。随后在 Web UI 新建会话并
-选择“APEX v0.4（实验）”。preset 不会重组已有会话，所以旧会话不会自动切换到 v0.4。
+选择“APEX v0.4.1（实验）”。preset 不会重组已有会话，所以旧会话不会自动切换到 v0.4.1。
 
 ### 安全进程清理
 
-v0.4 使用 Harness 的 `ctx.tools.guard` 在工具体运行前拒绝已知宽泛终止形式，包括 `pkill`、
+v0.4.1 使用 Harness 的 `ctx.tools.guard` 在工具体运行前拒绝已知宽泛终止形式，包括 `pkill`、
 `killall`、`taskkill /IM`、`Stop-Process -Name`，以及同一命令中的 `pgrep | kill` 和
 `Get-Process | Stop-Process`。使用当前任务启动时记录的 PID：
 
@@ -151,26 +166,33 @@ Windows 对应使用 `taskkill /PID 12345` 或 `Stop-Process -Id 12345`。该 Gu
 联网、技能、目标、子 agent、工作流、后台任务或 Standard 文件工具时，应先解锁对应工具，
 而不是用 `bash` 模拟缺失能力。
 
-知道精确名称时，一次调用即可解锁，例如：
+即使知道精确名称，也必须先搜索一次，让白名单候选写入持久结果：
+
+```json
+{"query":"web"}
+```
+
+然后每次只解锁一个由该任务早先搜索返回的名称：
 
 ```json
 {"toolNames":["web_search"]}
 ```
 
-不知道名称时先搜索：
+不知道名称时可使用更自然的长查询；v0.4.1 按命中词数量排序，不再要求每个词都匹配：
 
 ```json
 {"query":"filesystem grep"}
 ```
 
-搜索最多返回 20 个匹配工具及其首行说明，不会把完整 Standard schema 放进每个请求。
-解锁从下一条模型请求生效，并持续到下一条真人用户消息或本次 compaction。
+搜索最多返回 20 个白名单工具及其首行说明，不会把完整 Standard schema 放进每个请求。
+只有成功的解锁结果从下一条模型请求生效，并持续到下一条真人用户消息或本次 compaction。
+外部插件临时注册但不属于当前 Standard 清单的工具不会被发现或解锁。
 
 ## 跨平台状态
 
 - macOS / Linux：复用 Harness 的 persistent Bash 与相同的 preset composition。
 - Windows：保留原生 PowerShell，并通过 Git Bash fallback 提供 Minimal-compatible `bash`。
-- Guard：同时识别 POSIX 的宽泛终止命令和 Windows PowerShell / `taskkill` 对应形式。
+- Guard：同时识别 POSIX/Windows 的宽泛终止命令，并用同一持久事件算法限制研究调用。
 - CI：仓库内的 `cross-platform.yml` 会在 push / PR 后分别使用 Ubuntu、macOS、Windows 运行
   完整 `npm run check`。
 
@@ -191,11 +213,12 @@ npm run check
 验证覆盖：
 
 1. v0.2 基线保持不变，官方 Minimal composition 仍逐字节匹配固定基线。
-2. v0.3 发布树保持逐字节不变，v0.4 首请求仍只有官方 Minimal system prompt 与双工具。
+2. v0.3/v0.4 对照树保持逐字节不变，v0.4.1 首请求仍只有官方 Minimal system prompt 与双工具。
 3. 每个真人任务重新进入 Minimal 锚点，任务内按需晋级；插件 policy 消息不会造成假边界。
 4. APEX 策略在首请求缺席、晋级后每个任务只注入一次、compaction 后可恢复。
-5. v0.4 Guard 拒绝已知宽泛终止形式，同时保留明确 PID 清理。
-6. Standard package rows、常驻工具、显式解锁、恢复和子 agent 行为。
+5. v0.4.1 Guard 拒绝宽泛终止、重复查询、无租约的第四次 Web 搜索、第十一次 Web 搜索、
+   默认预算后委派绕过和第五次工具目录发现；续额租约只能用于一条不重复的查询。
+6. Standard package rows、白名单发现、成功结果租约、恢复和子 agent 行为。
 7. 三个 preset 的幂等安装、内容冲突拒绝、符号链接拒绝、挂载失败隔离回滚。
 8. macOS、Linux 和 Windows 的组合路径，以及 Windows Git Bash fallback contract。
 
@@ -211,19 +234,19 @@ DSH_CHECKOUT=/path/to/deepseek-harness npm test
 
 ```sh
 TEST_ROOT=/path/to/test-directory
-TEST_HOME="$(mktemp -d "$TEST_ROOT/apex-v0.4-home.XXXXXX")"
+TEST_HOME="$(mktemp -d "$TEST_ROOT/apex-v0.4.1-home.XXXXXX")"
 DSH_HOME="$TEST_HOME" dsh plugin --profile web add /path/to/dsh-APEX_Plugin
 DSH_HOME="$TEST_HOME" dsh --profile web --dump-config
 DSH_HOME="$TEST_HOME" dsh web --port 0
 ```
 
-检查 `.agent-presets/apex-v04/` 是否包含 composition、策略、Guard 和三个跨平台运行模块，并在
+检查 `.agent-presets/apex-v041/` 是否包含 composition、策略、Guard 和三个跨平台运行模块，并在
 新会话中确认请求工具序列：
 
 ```text
 1. 每条真人任务的首次请求：bash + str_replace_editor
 2. 当前任务晋级后：bash + dev_tool_search + str_replace_editor
-3. 当前任务第二步显式解锁的工具
+3. 当前任务先发现、再由成功结果显式解锁的单个工具
 4. 下一条真人任务或 compaction 后：回到步骤 1
 ```
 
@@ -233,14 +256,15 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 
 - A：官方 `minimal`
 - B：`minimal-max-v2`
-- C：`apex-v04`
+- C：`apex-v041`
 - D：官方 `standard`
 
 保持同一模型端点、版本、推理强度、max tokens、题目、workspace 初始状态和权限。每次使用
 全新会话，每组至少重复 10 次，并记录：完成率、硬性需求覆盖率、首个动作、工具参数合法率、
 返工次数、输入/输出 token、延迟和错误。比较 B/C 可以单独判断 APEX 策略的净影响；比较
-A/B 可以判断工具锚定的影响；D 是完整 Standard 对照。另用 v0.3/v0.4 配对测试判断新 Guard
-和验证策略的净影响。不要以单次成功宣称普遍提升。
+A/B 可以判断工具锚定的影响；D 是完整 Standard 对照。另用 v0.3/v0.4 配对测试判断进程 Guard
+和验证策略的净影响，用 v0.4/v0.4.1 配对测试判断自适应研究租约与绝对上限的收益和副作用。不要以单次成功
+宣称普遍提升。
 
 ### 已发布的 pilot
 
@@ -250,17 +274,19 @@ A/B 可以判断工具锚定的影响；D 是完整 Standard 对照。另用 v0.
 
 ## 已知边界
 
-- v0.4 的动态提升按真人消息划分任务，不做语义任务分类或自动预测工具。
+- v0.4.1 的动态提升按真人消息划分任务，不做语义任务分类或自动预测工具。
 - APEX 策略是新的实验变量，必须通过 B/C 重复评测判断收益与副作用。
 - 进程 Guard 覆盖已知宽泛终止形式，不是完整 shell 解析器；复杂间接包装仍由 PID-only
   policy 约束。
-- 验证预算是一次性模型策略，不是强制工具调用计数器；只有重复实测仍失控时才值得加入状态机。
+- 研究预算已强制计数，但静态检查、运行时 smoke、截图和构建次数仍由一次性策略约束；若这些
+  路径也出现可重复失控证据，再增加对应状态而不是预先扩张 Guard。
+- 工具白名单固定为当前 Standard 的模型工具；Harness 新增 Standard 工具时必须审查后显式加入。
 - Windows fallback 每次调用是新进程，不保留 shell 状态，也不应用 Harness OS sandbox；
   Linux/Windows 已有跨平台 contract 与 CI 入口，仍需对应 runner 或真实主机端到端跑绿。
 - Harness 升级若改变 Minimal 或 Standard composition，基线测试会有意失败，必须审查差异
   后再升级。
 - 删除 bundle 不会自动删除用户 preset。停止 DSH 后，再通过 preset 管理能力显式删除不再
-  使用的 `apex-v04`、`apex-v03` 或 `minimal-max-v2`。
+  使用的 `apex-v041`、`apex-v04`、`apex-v03` 或 `minimal-max-v2`。
 
 ## 研究依据与致谢
 

@@ -17,12 +17,14 @@ export const inject = ['agentPresets']
 export const PRESET_ID = 'minimal-max-v2'
 export const APEX_PRESET_ID = 'apex-v03'
 export const APEX_V04_PRESET_ID = 'apex-v04'
+export const APEX_V041_PRESET_ID = 'apex-v041'
 
 const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32'])
 const PRESET_DIRECTORIES = Object.freeze({
   [PRESET_ID]: 'v2',
   [APEX_PRESET_ID]: 'apex-v03',
   [APEX_V04_PRESET_ID]: 'apex-v04',
+  [APEX_V041_PRESET_ID]: 'apex-v041',
 })
 export const PRESET_IDS = Object.freeze(Object.keys(PRESET_DIRECTORIES))
 
