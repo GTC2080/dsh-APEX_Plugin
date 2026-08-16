@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "benchmarkId": "usp-match-2026-08-16",
+  "pilot": true,
+  "repetitionsPerPreset": 1,
+  "conditions": {
+    "provider": "deepseek-official",
+    "model": "deepseek-v4-pro",
+    "reasoningEffort": "max",
+    "maxTokens": 256000,
+    "permission": "workspace-write",
+    "freshSessionPerCase": true,
+    "emptyIndependentWorkspacePerCase": true,
+    "submittedInSameSecond": true,
+    "promptSha256": "04b18aff68f07c0b65a7934517a9ed3033a1a004f57d6ed60a52412654534c65",
+    "minimalFirstRequestSha256": "62da0805d46011a294fcd783b80c09098d51152d6deef0ef91fe08b6fe47a9c0"
+  },
+  "integrity": {
+    "allPromptHashesMatch": true,
+    "allLoggedPromptsMatchFiles": true,
+    "allModelConfigsMatch": true,
+    "allPermissionsMatch": true,
+    "minimalMaxFirstRequestMatchesMinimal": true,
+    "apexFirstRequestMatchesMinimal": true,
+    "standardFirstRequestDiffersFromMinimal": true,
+    "apexPolicyPersistentEventCount": 1
+  },
+  "cases": [
+    {
+      "preset": "minimal",
+      "label": "Minimal",
+      "wallTimeMs": 2055921,
+      "steps": 69,
+      "tokens": {
+        "output": 102539,
+        "uncachedInput": 20500,
+        "cacheRead": 5854080
+      },
+      "toolErrors": 0,
+      "broadProcessKills": 0,
+      "deliverable": {
+        "onlyOneHtmlFile": true,
+        "bytes": 39597,
+        "sha256": "3cce48ec34540845b1a106f20c99cb03aa2af2e27e7994e9a86fa0f3906fa975"
+      },
+      "browser": {
+        "fileOpenPassed": true,
+        "pageErrors": [],
+        "visibleAnimation": true,
+        "measuredRafFps": 120,
+        "ar15SwitchPassed": true
+      }
+    },
+    {
+      "preset": "standard",
+      "label": "Standard",
+      "wallTimeMs": 2112544,
+      "steps": 35,
+      "tokens": {
+        "output": 136755,
+        "uncachedInput": 48950,
+        "cacheRead": 4360704
+      },
+      "toolErrors": 1,
+      "broadProcessKills": 0,
+      "deliverable": {
+        "onlyOneHtmlFile": false,
+        "htmlBytes": 48331,
+        "htmlSha256": "4c575d5fec0468faad9e519585195b59d8aa6ce10856788c245d7fee7c658d8d",
+        "extraFile": "standard-test-anim.cjs"
+      },
+      "browser": {
+        "fileOpenPassed": false,
+        "pageErrors": [
+          "THREE is not defined"
+        ],
+        "visibleAnimation": false,
+        "measuredRafFps": null,
+        "ar15SwitchPassed": false
+      }
+    },
+    {
+      "preset": "minimal-max-v2",
+      "label": "Minimal Max v0.2",
+      "wallTimeMs": 3413895,
+      "steps": 120,
+      "tokens": {
+        "output": 121393,
+        "uncachedInput": 31767,
+        "cacheRead": 11264512
+      },
+      "toolErrors": 5,
+      "broadProcessKills": 22,
+      "deliverable": {
+        "onlyOneHtmlFile": true,
+        "bytes": 39127,
+        "sha256": "4db313bf0f3e571cdd9849d906ba0a3a36b7d82ce925e0cbad14486afc16ad9f"
+      },
+      "browser": {
+        "fileOpenPassed": true,
+        "pageErrors": [],
+        "visibleAnimation": true,
+        "measuredRafFps": 120,
+        "ar15SwitchPassed": true
+      }
+    },
+    {
+      "preset": "apex-v03",
+      "label": "APEX v0.3",
+      "wallTimeMs": 2987852,
+      "steps": 74,
+      "tokens": {
+        "output": 117868,
+        "uncachedInput": 33753,
+        "cacheRead": 6813568
+      },
+      "toolErrors": 0,
+      "broadProcessKills": 0,
+      "apexPolicyPersistentEventCount": 1,
+      "toolsActuallyCalled": [
+        "bash",
+        "str_replace_editor"
+      ],
+      "devToolSearchCalled": false,
+      "deliverable": {
+        "onlyOneHtmlFile": true,
+        "bytes": 48910,
+        "sha256": "a0eede39efcb503d802f5d2c7370acd65496822a64d3a8041a5fe8e90e94d9e6"
+      },
+      "browser": {
+        "fileOpenPassed": true,
+        "pageErrors": [],
+        "visibleAnimation": true,
+        "measuredRafFps": 120.24,
+        "ar15SwitchPassed": true
+      }
+    }
+  ],
+  "comparisons": {
+    "apexVsMinimalPercent": {
+      "wallTime": 45.3,
+      "steps": 7.2,
+      "outputTokens": 14.9
+    },
+    "apexVsMinimalMaxPercent": {
+      "wallTime": -12.5,
+      "steps": -38.3,
+      "outputTokens": -2.9
+    },
+    "apexVsStandardOutputTokensPercent": -13.8
+  },
+  "interpretation": [
+    "APEX v0.3 produced the strongest artifact in this pilot, while Minimal had the best efficiency-to-quality balance.",
+    "APEX did not call dev_tool_search, so this task did not test the value of Standard-only tool unlocks.",
+    "This is n=1 per preset and is not evidence of stable general superiority."
+  ]
+}

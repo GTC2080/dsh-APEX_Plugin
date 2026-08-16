@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>USP MATCH // LOW-POLY MECHANICAL CUTAWAY</title>
+<style>
+  :root{
+    --bg:#b6bcc5;
+    --panel:rgba(22,25,30,.78);
+    --ink:#e8edf3;
+    --dim:#8f98a6;
+    --green:#35ff6a;
+    --red:#ff4038;
+    --line:rgba(205,216,230,.45);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    width:100%; height:100%;
+    background:var(--bg);
+    overflow:hidden;
+    font-family:"Courier New", ui-monospace, Menlo, monospace;
+    color:var(--ink);
+    -webkit-user-select:none; user-select:none;
+  }
+  #view,#hud{
+    position:fixed; inset:0;
+    width:100%; height:100%;
+    display:block;
+    image-rendering:pixelated;
+    image-rendering:crisp-edges;
+  }
+  #view{cursor:grab;}
+  #view.dragging{cursor:grabbing;}
+  #crt{
+    position:fixed; inset:0; pointer-events:none;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.055) 0px, rgba(0,0,0,.055) 1px, transparent 1px, transparent 3px),
+      radial-gradient(ellipse at 50% 48%, transparent 55%, rgba(8,10,14,.20) 100%);
+    mix-blend-mode:multiply;
+  }
+  #title{
+    position:fixed; left:18px; top:16px; pointer-events:none;
+    font-weight:bold; letter-spacing:.06em; line-height:1.05;
+    text-shadow:2px 2px 0 rgba(15,18,22,.55);
+  }
+  #title .a{font-size:clamp(18px,2.4vw,30px); color:#f4f7fb;}
+  #title .b{font-size:clamp(9px,1.1vw,13px); color:var(--dim); margin-top:4px; letter-spacing:.18em;}
+  #controls{
+    position:fixed; right:14px; top:14px; z-index:4;
+    display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;
+  }
+  #controls button{
+    background:var(--panel); color:var(--ink);
+    border:1px solid rgba(255,255,255,.22);
+    padding:7px 10px; font:inherit; font-size:11px; letter-spacing:.08em;
+    cursor:pointer; text-transform:uppercase;
+    box-shadow:2px 2px 0 rgba(0,0,0,.35);
+  }
+  #controls button:hover{border-color:#fff;}
+  #controls button.active{background:#e9eef4; color:#14171b; border-color:#fff;}
+  #readout{
+    position:fixed; left:18px; bottom:16px; z-index:3; pointer-events:none;
+    font-size:10px; letter-spacing:.10em; color:var(--dim); line-height:1.7;
+    text-shadow:1px 1px 0 rgba(15,18,22,.45);
+  }
+  #readout b{color:var(--ink);}
+  #legend{
+    position:fixed; right:16px; bottom:16px; z-index:3; pointer-events:none;
+    display:flex; gap:14px; font-size:10px; letter-spacing:.08em; color:var(--dim);
+    text-shadow:1px 1px 0 rgba(15,18,22,.45);
+  }
+  #legend .dot{display:inline-block; width:7px; height:7px; margin-right:5px; vertical-align:0px;}
+  #legend .g{background:var(--green); box-shadow:0 0 8px var(--green);}
+  #legend .r{background:var(--red); box-shadow:0 0 8px var(--red);}
+  #hint{
+    position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
+    font-size:10px; letter-spacing:.14em; color:rgba(25,28,34,.62);
+    pointer-events:none; white-space:nowrap;
+  }
+  @media (max-width:640px){
+    #hint{display:none;}
+    #legend{display:none;}
+    #controls{right:8px; top:8px;}
+    #title{left:10px; top:10px;}
+  }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<canvas id="hud"></canvas>
+<div id="crt"></div>
+
+<div id="title">
+  <div class="a">USP MATCH</div>
+  <div class="b">LOW-POLY ARMORY // PS1 MECHANICAL STUDY</div>
+</div>
+
+<div id="controls">
+  <button id="btn-usp" class="active">USP MATCH</button>
+  <button id="btn-ar">AR-15</button>
+  <button id="btn-hud">HUD</button>
+  <button id="btn-pause">PAUSE</button>
+</div>
+
+<div id="readout">
+  <span id="mode-line"><b>MODE:</b> USP MATCH / EXPLODED CYCLE</span><br>
+  <span><b>GEOMETRY:</b> PROCEDURAL FLAT-SHADE</span> //
+  <span><b>TEXTURE:</b> 16×16 NEAREST</span> //
+  <span><b>CAMERA:</b> ORTHOGRAPHIC</span> //
+  <span><b>LOOP:</b> 60 FPS</span>
+</div>
+
+<div id="legend">
+  <span><i class="dot g"></i>FRONT FIBER</span>
+  <span><i class="dot r"></i>REAR FIBER</span>
+</div>
+<div id="hint">DRAG ORBIT · WHEEL ZOOM · 1/2 SWITCH MODE · H HUD · SPACE PAUSE</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+/* ============================================================
+   deterministic pixel texture helpers (90's nearest-neighbour)
+   ============================================================ */
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function makePixelTexture(base, accents, w=16, h=16, seed=1, grain=0.16, stripes=false){
+  const cnv = document.createElement('canvas');
+  cnv.width = w; cnv.height = h;
+  const ctx = cnv.getContext('2d');
+  const rnd = mulberry32(seed);
+  ctx.fillStyle = base;
+  ctx.fillRect(0,0,w,h);
+  if(stripes){
+    for(let y=0; y<h; y++){
+      if(rnd() > 0.72){
+        ctx.fillStyle = accents[0];
+        const x0 = Math.floor(rnd()*w*0.25);
+        ctx.fillRect(x0, y, 2 + Math.floor(rnd()*(w-x0-1)), 1);
+      }
+    }
+  }
+  for(let i=0; i<Math.floor(w*h*grain); i++){
+    ctx.fillStyle = accents[Math.floor(rnd()*accents.length)];
+    ctx.fillRect(Math.floor(rnd()*w), Math.floor(rnd()*h), 1, 1);
+  }
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeTextTexture(text, fg='#d6dee8', bg=null, w=128, h=32){
+  const cnv = document.createElement('canvas');
+  cnv.width = w; cnv.height = h;
+  const ctx = cnv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  if(bg){ ctx.fillStyle = bg; ctx.fillRect(0,0,w,h); }
+  ctx.font = 'bold 22px "Courier New", monospace';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = fg;
+  ctx.fillText(text, w/2, h/2 + 1);
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function extrude(shape, depth){
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled:false });
+  geo.translate(0,0,-depth/2);
+  return geo;
+}
+
+function materialFrom(map, opts={}){
+  return new THREE.MeshStandardMaterial(Object.assign({
+    map,
+    roughness:0.8,
+    metalness:0.25,
+    flatShading:true
+  }, opts));
+}
+
+function box(w,h,d, mat, x=0,y=0,z=0, ry=0, rz=0){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z);
+  m.rotation.y = ry; m.rotation.z = rz;
+  return m;
+}
+
+function cylinderAlongX(radius, length, mat, x, y, z, seg=10){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, seg, 1), mat);
+  m.rotation.z = -Math.PI/2;
+  m.position.set(x,y,z);
+  return m;
+}
+
+function cylinderAlongZ(radius, length, mat, x, y, z, seg=8){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, seg, 1), mat);
+  m.rotation.x = Math.PI/2;
+  m.position.set(x,y,z);
+  return m;
+}
+
+function ringCoil(radius, tube, length, count, mat, x, y, z, seg=5){
+  const grp = new THREE.Group();
+  for(let i=0; i<count; i++){
+    const t = count === 1 ? 0 : (i/(count-1) - 0.5) * length;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, seg, 6), mat);
+    ring.rotation.y = Math.PI/2;
+    ring.position.set(t, 0, 0);
+    grp.add(ring);
+  }
+  grp.position.set(x,y,z);
+  return grp;
+}
+
+/* ============================================================
+   shared materials
+   ============================================================ */
+const TEX = {
+  polymer: makePixelTexture('#22262c', ['#30363e','#171a1f','#3a424b'], 16,16,11,0.20,false),
+  frame:   makePixelTexture('#24282e', ['#31363e','#191d22','#383f48'], 16,16,12,0.22,false),
+  slide:   makePixelTexture('#1d242c', ['#27313b','#101419','#34404b'], 16,16,23,0.18,true),
+  comp:    makePixelTexture('#23272d', ['#30353c','#14171b','#3c434c'], 16,16,31,0.20,false),
+  barrel:  makePixelTexture('#cfd6dd', ['#eef3f7','#aab3bd','#8d98a4'], 16,16,41,0.14,false),
+  steel:   makePixelTexture('#555e68', ['#707b86','#3e454e','#838f9b'], 16,16,51,0.16,false),
+  grip:    makePixelTexture('#171a1f', ['#252a31','#0d0f12','#2d333b'], 16,16,61,0.26,false),
+  port:    makePixelTexture('#0a0c0f', ['#111418','#050607'], 16,16,71,0.12,false),
+  arLower: makePixelTexture('#16191e', ['#22262c','#0b0d10','#2b3037'], 16,16,81,0.20,false),
+  arUpper: makePixelTexture('#1d2228', ['#2a3038','#111419','#333b44'], 16,16,91,0.18,false),
+  spring:  makePixelTexture('#a8b2bd', ['#c3cdd7','#7e8994'], 16,16,101,0.15,false)
+};
+
+const MAT = {
+  frame:    materialFrom(TEX.frame,   { roughness:0.86, metalness:0.12 }),
+  polymer:  materialFrom(TEX.polymer, { roughness:0.90, metalness:0.08 }),
+  grip:     materialFrom(TEX.grip,    { roughness:0.92, metalness:0.06 }),
+  slide:    materialFrom(TEX.slide,   { roughness:0.42, metalness:0.72 }),
+  comp:     materialFrom(TEX.comp,    { roughness:0.48, metalness:0.68 }),
+  barrel:   materialFrom(TEX.barrel,  { roughness:0.30, metalness:0.95 }),
+  steel:    materialFrom(TEX.steel,   { roughness:0.50, metalness:0.80 }),
+  port:     materialFrom(TEX.port,    { roughness:0.95, metalness:0.05 }),
+  spring:   materialFrom(TEX.spring,  { roughness:0.45, metalness:0.70 }),
+  arLower:  materialFrom(TEX.arLower, { roughness:0.78, metalness:0.30 }),
+  arUpper:  materialFrom(TEX.arUpper, { roughness:0.52, metalness:0.62 }),
+  fiberG:   new THREE.MeshBasicMaterial({ color:0x35ff6a, toneMapped:false }),
+  fiberR:   new THREE.MeshBasicMaterial({ color:0xff4038, toneMapped:false }),
+  glowG:    new THREE.MeshBasicMaterial({ color:0x1aff50, transparent:true, opacity:0.30, depthWrite:false, side:THREE.DoubleSide }),
+  glowR:    new THREE.MeshBasicMaterial({ color:0xff3020, transparent:true, opacity:0.28, depthWrite:false, side:THREE.DoubleSide })
+};
+
+/* ============================================================
+   USP MATCH
+   ============================================================ */
+function buildUSP(){
+  const root = new THREE.Group();
+  root.name = 'USP Match';
+
+  /* ----- polymer lower receiver / frame (extruded side profile) ----- */
+  const frameShape = new THREE.Shape();
+  frameShape.moveTo(-1.34, 0.04);
+  frameShape.lineTo(-0.90, 0.38);
+  frameShape.lineTo(-0.05, 0.40);
+  frameShape.lineTo( 0.85, 0.38);
+  frameShape.lineTo( 1.04, 0.30);
+  frameShape.lineTo( 1.28, 0.14);
+  frameShape.lineTo( 1.22,-0.10);
+  frameShape.lineTo( 0.98,-0.10);
+  frameShape.lineTo( 0.86,-0.20);
+  frameShape.lineTo( 0.94,-0.82);
+  frameShape.lineTo( 0.64,-1.14);
+  frameShape.lineTo( 0.12,-1.12);
+  frameShape.lineTo(-0.05,-0.80);
+  frameShape.lineTo( 0.02,-0.24);
+  frameShape.lineTo(-0.08,-0.10);
+  frameShape.lineTo(-0.18, 0.06);
+  frameShape.lineTo(-0.60,-0.62);
+  frameShape.lineTo(-0.80,-1.62);
+  frameShape.lineTo(-0.96,-2.52);
+  frameShape.lineTo(-1.08,-2.58);
+  frameShape.lineTo(-1.26,-2.52);
+  frameShape.lineTo(-1.42,-1.72);
+  frameShape.lineTo(-1.42,-0.50);
+  frameShape.lineTo(-1.36,-0.04);
+  frameShape.closePath();
+
+  const frameGeo = extrude(frameShape, 0.34);
+  const frame = new THREE.Mesh(frameGeo, MAT.frame);
+  root.add(frame);
+
+  /* dust-cover accessory rail / blocky locking block */
+  const dustCover = box(0.66, 0.16, 0.30, MAT.polymer, 0.42, 0.06, 0);
+  root.add(dustCover);
+  const frontBlock = box(0.30, 0.34, 0.28, MAT.polymer, 1.08, 0.20, 0, 0, -0.10);
+  root.add(frontBlock);
+
+  /* hammer + fire-control hints */
+  const hammerGroup = new THREE.Group();
+  hammerGroup.position.set(-1.31, 0.15, 0);
+  const hammer = box(0.10, 0.24, 0.14, MAT.steel, 0, 0, 0, 0, -0.12);
+  hammerGroup.add(hammer);
+  const hammerSpur = box(0.16, 0.05, 0.10, MAT.steel, -0.06, 0.11, 0, 0, 0.28);
+  hammerGroup.add(hammerSpur);
+  root.add(hammerGroup);
+
+  const trigger = box(0.035, 0.17, 0.05, MAT.steel, 0.38, -0.52, 0, 0, -0.20);
+  root.add(trigger);
+
+  const slideStop = box(0.26, 0.05, 0.035, MAT.steel, -0.55, 0.06, 0.18);
+  root.add(slideStop);
+  const takeDown = box(0.22, 0.045, 0.035, MAT.steel, -0.78, 0.10, -0.18);
+  root.add(takeDown);
+  const magRelease = box(0.07, 0.10, 0.035, MAT.steel, -0.10, -0.30, -0.18);
+  root.add(magRelease);
+
+  /* ----- slide unit: two extruded side walls + roof. Right wall has a real ejection-port opening ----- */
+  const slideShape = new THREE.Shape();
+  slideShape.moveTo(-1.66, 0.34);
+  slideShape.lineTo(-1.76, 0.52);
+  slideShape.lineTo(-1.80, 0.74);
+  slideShape.lineTo(-1.42, 0.82);
+  slideShape.lineTo(-0.66, 0.82);
+  slideShape.lineTo( 0.28, 0.82);
+  slideShape.lineTo( 0.92, 0.78);
+  slideShape.lineTo( 1.38, 0.68);
+  slideShape.lineTo( 1.58, 0.54);
+  slideShape.lineTo( 1.64, 0.40);
+  slideShape.lineTo( 1.42, 0.34);
+  slideShape.lineTo(-1.08, 0.34);
+  slideShape.closePath();
+
+  const portPath = new THREE.Path();
+  portPath.moveTo( 0.04, 0.38);
+  portPath.lineTo( 0.54, 0.38);
+  portPath.lineTo( 0.54, 0.66);
+  portPath.lineTo( 0.04, 0.66);
+  portPath.closePath();
+
+  const slideGroup = new THREE.Group();
+  slideGroup.name = 'USP Slide';
+
+  const leftWallShape = slideShape.clone();
+  const leftWall = new THREE.Mesh(extrude(leftWallShape, 0.10), MAT.slide);
+  leftWall.position.z = -0.18;
+  slideGroup.add(leftWall);
+
+  const rightWallShape = slideShape.clone();
+  rightWallShape.holes.push(portPath.clone());
+  const rightWall = new THREE.Mesh(extrude(rightWallShape, 0.10), MAT.slide);
+  rightWall.position.z = 0.08;
+  slideGroup.add(rightWall);
+
+  const roof = box(3.24, 0.10, 0.36, MAT.slide, -0.10, 0.77, 0);
+  slideGroup.add(roof);
+
+  /* rear cocking serrations on both slab sides */
+  for(let i=0; i<7; i++){
+    const x = -1.50 + i*0.085;
+    const leftS = box(0.035, 0.22, 0.006, MAT.slide, x, 0.48, -0.183, 0, -0.06);
+    const rightS = box(0.035, 0.22, 0.006, MAT.slide, x, 0.48, 0.183, 0, 0.06);
+    slideGroup.add(leftS, rightS);
+  }
+
+  /* slide markings */
+  const matchTex = makeTextTexture('MATCH', '#9aa8b6', null);
+  const matchPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.13), new THREE.MeshBasicMaterial({ map:matchTex, transparent:true, depthWrite:false }));
+  matchPlane.position.set(-0.72, 0.60, 0.181);
+  slideGroup.add(matchPlane);
+  const uspTex = makeTextTexture('USP', '#7e8a98', null);
+  const uspPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.11), new THREE.MeshBasicMaterial({ map:uspTex, transparent:true, depthWrite:false }));
+  uspPlane.position.set(-1.12, 0.60, -0.181);
+  uspPlane.rotation.y = Math.PI;
+  slideGroup.add(uspPlane);
+
+  /* rear sight with red fiber dots */
+  const rearSightBase = box(0.17, 0.18, 0.26, MAT.comp, -1.10, 0.91, 0);
+  slideGroup.add(rearSightBase);
+  const rearEarL = box(0.06, 0.10, 0.07, MAT.comp, -1.14, 1.01, -0.095);
+  const rearEarR = box(0.06, 0.10, 0.07, MAT.comp, -1.14, 1.01, 0.095);
+  slideGroup.add(rearEarL, rearEarR);
+  const redL = box(0.05, 0.025, 0.025, MAT.fiberR, -1.15, 1.055, -0.08);
+  const redR = box(0.05, 0.025, 0.025, MAT.fiberR, -1.15, 1.055, 0.08);
+  slideGroup.add(redL, redR);
+  const redGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.10), MAT.glowR);
+  redGlow.position.set(-1.16, 1.05, 0);
+  redGlow.rotation.y = -Math.PI/2;
+  slideGroup.add(redGlow);
+
+  root.add(slideGroup);
+
+  /* ----- bright barrel, chamber block and recoil spring (fixed to frame) ----- */
+  const barrel = cylinderAlongX(0.065, 1.30, MAT.barrel, 1.04, 0.45, 0);
+  root.add(barrel);
+  const chamber = box(0.48, 0.22, 0.14, MAT.barrel, 0.44, 0.45, 0);
+  root.add(chamber);
+  const muzzleCrown = cylinderAlongX(0.075, 0.06, MAT.barrel, 1.68, 0.45, 0);
+  root.add(muzzleCrown);
+  const guideRod = cylinderAlongX(0.020, 0.86, MAT.steel, 0.77, 0.27, 0);
+  root.add(guideRod);
+  root.add(ringCoil(0.042, 0.012, 0.50, 9, MAT.spring, 0.75, 0.27, 0));
+
+  /* ----- front Match weight / compensator (moves forward in exploded phase) ----- */
+  const compGroup = new THREE.Group();
+  compGroup.name = 'USP Match Weight';
+
+  const compMain = box(0.52, 0.44, 0.42, MAT.comp, 1.95, 0.43, 0);
+  compGroup.add(compMain);
+  const compNose = box(0.10, 0.34, 0.34, MAT.comp, 2.17, 0.43, 0);
+  compGroup.add(compNose);
+  const compRib = box(0.20, 0.10, 0.14, MAT.comp, 1.96, 0.70, 0);
+  compGroup.add(compRib);
+  for(let i=0; i<3; i++){
+    const x = 1.76 + i*0.13;
+    compGroup.add(box(0.018, 0.12, 0.006, MAT.port, x, 0.46, 0.212));
+    compGroup.add(box(0.018, 0.12, 0.006, MAT.port, x, 0.46, -0.212));
+  }
+  const compScrewL = cylinderAlongZ(0.022, 0.03, MAT.steel, 1.78, 0.30, 0.21, 6);
+  const compScrewR = cylinderAlongZ(0.022, 0.03, MAT.steel, 1.78, 0.30, -0.21, 6);
+  compGroup.add(compScrewL, compScrewR);
+
+  /* high-contrast green fiber front sight, mounted on the weight */
+  const frontBlade = box(0.045, 0.24, 0.06, MAT.comp, 1.98, 0.84, 0);
+  compGroup.add(frontBlade);
+  const greenRod = cylinderAlongZ(0.018, 0.15, MAT.fiberG, 1.98, 0.91, 0, 6);
+  compGroup.add(greenRod);
+  const greenGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.12), MAT.glowG);
+  greenGlow.position.set(1.98, 0.91, 0.09);
+  greenGlow.rotation.y = Math.PI/2;
+  compGroup.add(greenGlow);
+  const greenGlow2 = greenGlow.clone();
+  greenGlow2.position.z = -0.09;
+  greenGlow2.rotation.y = -Math.PI/2;
+  compGroup.add(greenGlow2);
+
+  root.add(compGroup);
+
+  /* ----- separated magazine, aligned with the grip axis ----- */
+  const magShape = new THREE.Shape();
+  magShape.moveTo(-0.11,-0.94);
+  magShape.lineTo( 0.11,-0.94);
+  magShape.lineTo( 0.13, 0.78);
+  magShape.lineTo( 0.07, 0.96);
+  magShape.lineTo(-0.07, 0.96);
+  magShape.lineTo(-0.13, 0.78);
+  magShape.closePath();
+
+  const magGroup = new THREE.Group();
+  magGroup.name = 'USP Magazine';
+  const magBody = new THREE.Mesh(extrude(magShape, 0.30), MAT.polymer);
+  magGroup.add(magBody);
+  const magBase = box(0.30, 0.075, 0.34, MAT.steel, 0, 0.885, 0);
+  magGroup.add(magBase);
+  const magCatch = box(0.05, 0.09, 0.07, MAT.steel, 0, -0.62, 0.16);
+  magGroup.add(magCatch);
+  for(let i=0; i<4; i++){
+    const y = -0.35 + i*0.19;
+    magGroup.add(box(0.05, 0.035, 0.006, MAT.port, 0, y, 0.151));
+    magGroup.add(box(0.05, 0.035, 0.006, MAT.port, 0, y, -0.151));
+  }
+
+  const gripDir = new THREE.Vector3(-0.28, -0.96, 0).normalize();
+  magGroup.rotation.z = Math.atan2(-gripDir.x, gripDir.y);
+  const magBottom = new THREE.Vector3(-1.00, -2.52, 0);
+  const magBasePos = magBottom.clone().addScaledVector(gripDir, -0.96);
+  magGroup.position.copy(magBasePos);
+  root.add(magGroup);
+
+  /* ----- HUD anchors ----- */
+  const anchor = (parent, x,y,z) => { const o = new THREE.Object3D(); o.position.set(x,y,z); parent.add(o); return o; };
+  const anchors = {
+    slide: anchor(slideGroup, -0.55, 0.70, 0.16),
+    comp:  anchor(compGroup, 1.95, 0.50, 0.22),
+    barrel:anchor(root, 1.10, 0.45, 0.12),
+    frame: anchor(root, -0.52, -1.52, 0.18),
+    mag:   anchor(magGroup, 0, -0.30, 0.16),
+    frontSight: anchor(compGroup, 1.98, 0.91, 0),
+    rearSight:  anchor(slideGroup, -1.10, 1.02, 0)
+  };
+
+  return { root, parts:{ slideGroup, compGroup, magGroup, hammerGroup, anchors } };
+}
+
+/* ============================================================
+   OPTIONAL AR-15: upper/lower pivot open, pin, BCG and bolt
+   ============================================================ */
+function buildAR15(){
+  const root = new THREE.Group();
+  root.name = 'AR-15 Technical';
+
+  const PIVOT = new THREE.Vector3(0.10, 0.10, 0);
+  const upper = new THREE.Group();
+  upper.position.copy(PIVOT);
+  root.add(upper);
+
+  /* Upper receiver (pivot-local coordinates) */
+  const upperBody = box(1.68, 0.56, 0.38, MAT.arUpper, -0.52, 0.26, 0);
+  upper.add(upperBody);
+  const upperRail = box(1.42, 0.09, 0.16, MAT.arUpper, -0.44, 0.585, 0);
+  upper.add(upperRail);
+  for(let i=0; i<11; i++){
+    const x = -1.20 + i*0.12;
+    upper.add(box(0.10, 0.014, 0.17, MAT.port, x, 0.635, 0));
+  }
+  const port = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.30), MAT.port);
+  port.position.set(-0.52, 0.22, 0.191);
+  upper.add(port);
+  const deflector = box(0.16, 0.06, 0.05, MAT.arUpper, -0.62, 0.27, 0.16, 0, 0.35);
+  upper.add(deflector);
+  const forwardAssist = cylinderAlongZ(0.045, 0.07, MAT.arUpper, -0.48, 0.30, 0.22, 8);
+  upper.add(forwardAssist);
+
+  /* charging handle (own group so it travels straight back) */
+  const chGroup = new THREE.Group();
+  const chBody = box(0.30, 0.07, 0.10, MAT.steel, -1.12, 0.555, 0);
+  chGroup.add(chBody);
+  const chLatch = box(0.07, 0.06, 0.10, MAT.steel, -1.29, 0.555, 0);
+  chGroup.add(chLatch);
+  const chHandle = box(0.04, 0.05, 0.16, MAT.steel, -1.26, 0.555, 0);
+  chGroup.add(chHandle);
+  upper.add(chGroup);
+
+  /* BCG: carrier group + rotating bolt head group */
+  const bcgGroup = new THREE.Group();
+  const carrier = box(0.84, 0.26, 0.24, MAT.steel, -0.55, 0.26, 0);
+  bcgGroup.add(carrier);
+  const carrierTail = cylinderAlongX(0.095, 0.14, MAT.steel, -0.92, 0.26, 0, 8);
+  bcgGroup.add(carrierTail);
+  const gasKey = box(0.16, 0.08, 0.10, MAT.steel, -0.38, 0.42, 0);
+  bcgGroup.add(gasKey);
+
+  const boltGroup = new THREE.Group();
+  boltGroup.position.set(-0.16, 0.26, 0);
+  const boltHead = cylinderAlongX(0.098, 0.24, MAT.steel, 0, 0, 0, 7);
+  boltGroup.add(boltHead);
+  for(let i=0; i<6; i++){
+    const a = (i/6)*Math.PI*2;
+    const lug = box(0.10, 0.045, 0.035, MAT.steel, 0.05, Math.cos(a)*0.12, Math.sin(a)*0.12);
+    lug.rotation.x = a;
+    boltGroup.add(lug);
+  }
+  const boltFace = box(0.03, 0.11, 0.11, MAT.barrel, 0.13, 0, 0);
+  boltGroup.add(boltFace);
+  bcgGroup.add(boltGroup);
+  upper.add(bcgGroup);
+
+  /* barrel / handguard / gas system / muzzle */
+  const chamber = cylinderAlongX(0.095, 0.26, MAT.barrel, 0.18, 0.22, 0, 8);
+  upper.add(chamber);
+  const barrel = cylinderAlongX(0.075, 1.40, MAT.barrel, 0.85, 0.22, 0, 10);
+  upper.add(barrel);
+  const gasTube = cylinderAlongX(0.018, 0.50, MAT.steel, 0.52, 0.42, 0, 6);
+  upper.add(gasTube);
+  const gasBlock = box(0.24, 0.34, 0.30, MAT.arUpper, 0.66, 0.22, 0);
+  upper.add(gasBlock);
+  const frontSight = box(0.05, 0.22, 0.08, MAT.arUpper, 0.66, 0.50, 0);
+  upper.add(frontSight);
+  const handguard = box(0.86, 0.42, 0.34, MAT.polymer, 0.64, 0.16, 0);
+  upper.add(handguard);
+  for(let i=0; i<7; i++){
+    const x = 0.30 + i*0.095;
+    upper.add(box(0.035, 0.13, 0.006, MAT.port, x, 0.16, 0.171));
+    upper.add(box(0.035, 0.13, 0.006, MAT.port, x, 0.16, -0.171));
+  }
+  const deltaRing = cylinderAlongX(0.105, 0.07, MAT.arUpper, 0.20, 0.22, 0, 8);
+  upper.add(deltaRing);
+  const muzzle = box(0.24, 0.22, 0.22, MAT.arUpper, 1.66, 0.22, 0);
+  upper.add(muzzle);
+  for(let i=0; i<3; i++){
+    upper.add(box(0.02, 0.06, 0.006, MAT.port, 1.58 + i*0.06, 0.22, 0.111));
+    upper.add(box(0.02, 0.06, 0.006, MAT.port, 1.58 + i*0.06, 0.22, -0.111));
+  }
+  const rearSight = box(0.16, 0.14, 0.20, MAT.arUpper, -1.00, 0.66, 0);
+  upper.add(rearSight);
+
+  /* ----- Lower receiver (global coordinates, stays put) ----- */
+  const lower = new THREE.Group();
+  const lowerBody = box(1.70, 0.42, 0.40, MAT.arLower, -0.50, -0.10, 0);
+  lower.add(lowerBody);
+  const upperLugFront = box(0.16, 0.16, 0.30, MAT.arLower, 0.10, 0.10, 0);
+  lower.add(upperLugFront);
+  const upperLugRear = box(0.14, 0.16, 0.30, MAT.arLower, -0.90, 0.10, 0);
+  lower.add(upperLugRear);
+
+  /* magazine well + magazine */
+  const magwell = box(0.92, 0.38, 0.38, MAT.arLower, -0.16, -0.42, 0, 0, -0.04);
+  lower.add(magwell);
+
+  const magGroup = new THREE.Group();
+  magGroup.position.set(-0.22, -0.60, 0);
+  const magUpper = box(0.42, 0.40, 0.30, MAT.polymer, -0.10, -0.12, 0);
+  const magLower = box(0.42, 0.48, 0.30, MAT.polymer, -0.32, -0.50, 0, 0, 0.16);
+  magGroup.add(magUpper, magLower);
+  const magFloor = box(0.46, 0.06, 0.32, MAT.steel, -0.32, -0.75, 0);
+  magGroup.add(magFloor);
+  lower.add(magGroup);
+
+  /* trigger guard, trigger, hammer, safety, mag release, bolt catch */
+  const guardFront = box(0.06, 0.20, 0.06, MAT.arLower, 0.12, -0.38, 0);
+  const guardBottom = box(0.52, 0.06, 0.06, MAT.arLower, -0.14, -0.48, 0);
+  const guardRear = box(0.06, 0.20, 0.06, MAT.arLower, -0.40, -0.38, 0);
+  lower.add(guardFront, guardBottom, guardRear);
+
+  const trigger = box(0.05, 0.16, 0.05, MAT.steel, -0.18, -0.26, 0, 0, 0.12);
+  lower.add(trigger);
+
+  const hammerGroup = new THREE.Group();
+  hammerGroup.position.set(-0.46, 0.02, 0);
+  const hammer = box(0.09, 0.24, 0.10, MAT.steel, 0, 0.10, 0, 0, -0.10);
+  hammerGroup.add(hammer);
+  lower.add(hammerGroup);
+
+  const safety = cylinderAlongZ(0.045, 0.05, MAT.steel, -0.34, 0.02, -0.22, 8);
+  lower.add(safety);
+  const magRelease = cylinderAlongZ(0.045, 0.05, MAT.steel, -0.24, -0.18, 0.22, 8);
+  lower.add(magRelease);
+  const boltCatch = box(0.16, 0.05, 0.035, MAT.steel, -0.28, -0.02, -0.20);
+  lower.add(boltCatch);
+
+  /* grip */
+  const grip = box(0.36, 0.74, 0.40, MAT.grip, -0.44, -0.80, 0, 0, 0.22);
+  lower.add(grip);
+
+  /* buffer tube (translucent for spring visibility), spring, stock */
+  const tube = cylinderAlongX(0.15, 0.74, MAT.port, -1.43, 0.22, 0, 8);
+  tube.material = new THREE.MeshStandardMaterial({ color:0x2b323a, roughness:0.45, metalness:0.65, transparent:true, opacity:0.34, flatShading:true });
+  lower.add(tube);
+  lower.add(ringCoil(0.105, 0.014, 0.42, 8, MAT.spring, -1.42, 0.22, 0));
+  const bufferWeight = cylinderAlongX(0.075, 0.18, MAT.steel, -1.52, 0.22, 0, 8);
+  lower.add(bufferWeight);
+  const castleNut = cylinderAlongX(0.155, 0.06, MAT.arLower, -1.10, 0.22, 0, 8);
+  lower.add(castleNut);
+  const stock = box(0.42, 0.38, 0.34, MAT.polymer, -1.98, 0.24, 0);
+  lower.add(stock);
+  const buttPad = box(0.04, 0.40, 0.34, MAT.grip, -2.18, 0.24, 0);
+  lower.add(buttPad);
+
+  /* rear takedown pin (slides out to the right) and front pivot pin */
+  const pinGroup = new THREE.Group();
+  pinGroup.position.set(-0.90, 0.10, 0);
+  const pin = cylinderAlongZ(0.05, 0.55, MAT.steel, 0, 0, 0, 8);
+  pinGroup.add(pin);
+  const pinHead = box(0.09, 0.03, 0.03, MAT.steel, 0, 0.06, 0.26);
+  pinGroup.add(pinHead);
+  lower.add(pinGroup);
+  const pivotPin = cylinderAlongZ(0.05, 0.60, MAT.steel, 0.10, 0.10, 0, 8);
+  lower.add(pivotPin);
+
+  root.add(lower);
+
+  /* ----- HUD anchors ----- */
+  const anchor = (parent,x,y,z)=>{ const o = new THREE.Object3D(); o.position.set(x,y,z); parent.add(o); return o; };
+  const anchors = {
+    pivot: anchor(lower, 0.10, 0.10, 0),
+    pin:   anchor(pinGroup, 0, 0.06, 0),
+    upper: anchor(upper, -0.55, 0.30, 0.20),
+    lower: anchor(lower, -0.50, -0.52, 0.21),
+    bcg:   anchor(bcgGroup, -0.20, 0.26, 0.13),
+    bolt:  anchor(boltGroup, 0.10, 0, 0),
+    ch:    anchor(chGroup, -1.10, 0.555, 0),
+    barrel:anchor(upper, 1.35, 0.22, 0),
+    spring:anchor(lower, -1.42, 0.22, 0),
+    hammer:anchor(hammerGroup, 0, 0.14, 0)
+  };
+
+  return { root, parts:{ upper, lower, pinGroup, bcgGroup, boltGroup, chGroup, magGroup, hammerGroup, anchors } };
+}
+
+/* ============================================================
+   renderer / scene / camera
+   ============================================================ */
+const canvas = document.getElementById('view');
+const hudCanvas = document.getElementById('hud');
+const hudCtx = hudCanvas.getContext('2d');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance' });
+renderer.setClearColor(0xb6bcc5, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,100);
+
+const hemi = new THREE.HemisphereLight(0xdfe6ee, 0x4e545d, 0.95);
+scene.add(hemi);
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.1);
+keyLight.position.set(4, 6, 5);
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0xaebfd8, 0.75);
+fillLight.position.set(-5, 2, 3);
+scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.65);
+rimLight.position.set(-1, 3, -6);
+scene.add(rimLight);
+
+/* soft pixel shadow */
+const shadowTex = (()=>{
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0,0,32,32);
+  for(let r=0; r<14; r++){
+    const a = (14-r)/14;
+    ctx.fillStyle = `rgba(28,31,36,${(a*a*0.34).toFixed(3)})`;
+    const s = 2 + r*2;
+    ctx.fillRect(16 - s/2, 16 - s/2, s, s);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return t;
+})();
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 3.6), new THREE.MeshBasicMaterial({ map:shadowTex, transparent:true, depthWrite:false, opacity:0.8 }));
+shadow.rotation.x = -Math.PI/2;
+scene.add(shadow);
+
+/* build both demos */
+const usp = buildUSP();
+const ar15 = buildAR15();
+scene.add(usp.root);
+scene.add(ar15.root);
+ar15.root.visible = false;
+
+/* ============================================================
+   view state / controls
+   ============================================================ */
+let mode = 'usp';
+let hudOn = true;
+let paused = false;
+let cycleTime = 0;
+let lastTime = performance.now();
+const clock = new THREE.Clock();
+
+const view = {
+  theta: -0.30,
+  phi: 1.10,
+  zoom: 1.0,
+  baseHalf: 3.10,
+  target: new THREE.Vector3(-0.15, -0.72, 0)
+};
+const viewHome = {
+  usp: { theta:-0.30, phi:1.10, zoom:1.0, half:3.10, target:new THREE.Vector3(-0.15,-0.72,0) },
+  ar:  { theta:-0.22, phi:1.12, zoom:1.0, half:2.15, target:new THREE.Vector3(-0.10,-0.20,0) }
+};
+
+function applyCamera(){
+  const sph = new THREE.Spherical(10, view.phi, view.theta);
+  const p = new THREE.Vector3().setFromSpherical(sph);
+  camera.position.copy(view.target).add(p);
+  camera.lookAt(view.target);
+  camera.zoom = view.zoom;
+  const halfH = view.baseHalf / view.zoom;
+  const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  camera.left = -halfH * aspect;
+  camera.right = halfH * aspect;
+  camera.top = halfH;
+  camera.bottom = -halfH;
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+}
+
+function resize(){
+  /* render at reduced internal resolution, then nearest-upscale: chunky PS1 raster */
+  const cssW = Math.max(320, window.innerWidth);
+  const cssH = Math.max(240, window.innerHeight);
+  const scale = 0.5;
+  const w = Math.max(480, Math.floor(cssW * scale));
+  const h = Math.max(360, Math.floor(cssH * scale));
+  renderer.setSize(w, h, false);
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  hudCanvas.width = cssW;
+  hudCanvas.height = cssH;
+  hudCanvas.style.width = '100%';
+  hudCanvas.style.height = '100%';
+  applyCamera();
+}
+window.addEventListener('resize', resize);
+resize();
+
+let dragging = false, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', e=>{
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  canvas.classList.add('dragging');
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  view.theta -= dx * 0.0055;
+  view.phi = THREE.MathUtils.clamp(view.phi - dy * 0.0045, 0.28, 1.42);
+  applyCamera();
+});
+canvas.addEventListener('pointerup', e=>{ dragging = false; canvas.classList.remove('dragging'); });
+canvas.addEventListener('pointercancel', ()=>{ dragging = false; canvas.classList.remove('dragging'); });
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  view.zoom = THREE.MathUtils.clamp(view.zoom * (e.deltaY < 0 ? 1.07 : 0.935), 0.65, 2.6);
+  applyCamera();
+}, { passive:false });
+canvas.addEventListener('dblclick', ()=>{
+  const home = viewHome[mode];
+  view.theta = home.theta; view.phi = home.phi; view.zoom = home.zoom; view.baseHalf = home.half;
+  view.target.copy(home.target);
+  applyCamera();
+});
+
+/* ============================================================
+   animation easing + keyframe ramps
+   ============================================================ */
+function clamp01(v){ return Math.min(1, Math.max(0, v)); }
+function ease(t){ return t*t*(3 - 2*t); }
+function ramp(t, a, b){ return ease(clamp01((t - a) / (b - a))); }
+
+function uspKeys(t){
+  return {
+    slide: ramp(t, 0.07, 0.23) - ramp(t, 0.72, 0.88),
+    comp:  ramp(t, 0.15, 0.29) - ramp(t, 0.67, 0.81),
+    mag:   ramp(t, 0.27, 0.41) - ramp(t, 0.57, 0.71),
+    hammer:ramp(t, 0.07, 0.23) - ramp(t, 0.72, 0.88)
+  };
+}
+
+function arKeys(t){
+  return {
+    pin:    ramp(t, 0.06, 0.14) - ramp(t, 0.82, 0.90),
+    unlock: ramp(t, 0.16, 0.26) - ramp(t, 0.76, 0.86),
+    bcg:    ramp(t, 0.22, 0.40) - ramp(t, 0.64, 0.78),
+    upper:  ramp(t, 0.30, 0.50) - ramp(t, 0.52, 0.64),
+    mag:    ramp(t, 0.36, 0.50) - ramp(t, 0.52, 0.62),
+    hammer: ramp(t, 0.22, 0.40) - ramp(t, 0.64, 0.78)
+  };
+}
+
+function updateUSP(t){
+  const k = uspKeys(t);
+  usp.parts.slideGroup.position.x = -1.02 * k.slide;
+  usp.parts.compGroup.position.x = 0.58 * k.comp;
+  const gripDir = new THREE.Vector3(-0.28,-0.96,0).normalize();
+  const magBottom = new THREE.Vector3(-1.00,-2.52,0);
+  const magBasePos = magBottom.clone().addScaledVector(gripDir, -0.96);
+  usp.parts.magGroup.position.copy(magBasePos).addScaledVector(gripDir, 1.10 * k.mag);
+  usp.parts.hammerGroup.rotation.z = -0.42 * k.hammer;
+}
+
+function updateAR15(t){
+  const k = arKeys(t);
+  ar15.parts.pinGroup.position.z = 0.44 * k.pin;
+  ar15.parts.boltGroup.rotation.x = 0.52 * k.unlock;
+  ar15.parts.bcgGroup.position.x = -0.42 * k.bcg;
+  ar15.parts.chGroup.position.x = -0.24 * k.bcg;
+  ar15.parts.upper.rotation.z = -0.13 * k.upper;
+  ar15.parts.magGroup.position.y = -0.75 * k.mag;
+  ar15.parts.hammerGroup.rotation.z = -0.45 * k.hammer;
+}
+
+/* ============================================================
+   projected CAD-style HUD
+   ============================================================ */
+const v3 = new THREE.Vector3();
+function project(worldPos){
+  v3.copy(worldPos).project(camera);
+  const w = hudCanvas.width, h = hudCanvas.height;
+  return {
+    x: (v3.x * 0.5 + 0.5) * w,
+    y: (-v3.y * 0.5 + 0.5) * h,
+    depth: v3.z,
+    ok: v3.z < 1 && v3.z > -1
+  };
+}
+
+function hudLabel(anchorObj, label, color='#d6dee6', dx=12, dy=-10){
+  if(!anchorObj) return;
+  anchorObj.getWorldPosition(v3);
+  const p = project(v3);
+  if(!p.ok) return;
+  const ctx = hudCtx;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(206,216,228,.55)';
+  ctx.fillStyle = 'rgba(17,20,24,.58)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,3]);
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(p.x + dx*0.45, p.y + dy*0.45);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 2.6, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.font = '10px "Courier New", monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(12,14,17,.72)';
+  const tw = ctx.measureText(label).width;
+  ctx.fillRect(p.x + dx - 3, p.y + dy - 9, tw + 8, 13);
+  ctx.strokeStyle = 'rgba(180,195,210,.45)';
+  ctx.strokeRect(p.x + dx - 3.5, p.y + dy - 9.5, tw + 9, 14);
+  ctx.fillStyle = color;
+  ctx.fillText(label, p.x + dx + 1, p.y + dy - 2);
+  ctx.restore();
+}
+
+function drawHUD(){
+  const w = hudCanvas.width, h = hudCanvas.height;
+  hudCtx.clearRect(0,0,w,h);
+  if(!hudOn) return;
+  hudCtx.save();
+  hudCtx.strokeStyle = 'rgba(205,216,230,.14)';
+  hudCtx.lineWidth = 1;
+  /* static framing ticks */
+  for(let i=0; i<3; i++){
+    const cx = w/2 + (i-1)*w*0.21;
+    hudCtx.beginPath(); hudCtx.moveTo(cx-7, h-14); hudCtx.lineTo(cx+7, h-14); hudCtx.stroke();
+  }
+  for(let i=0; i<3; i++){
+    const cy = h/2 + (i-1)*h*0.21;
+    hudCtx.beginPath(); hudCtx.moveTo(14, cy-7); hudCtx.lineTo(14, cy+7); hudCtx.stroke();
+  }
+
+  if(mode === 'usp'){
+    hudLabel(usp.parts.anchors.comp, 'MATCH WEIGHT', '#d6dee6', 16, -14);
+    hudLabel(usp.parts.anchors.barrel, 'POLISHED BARREL', '#e8edf2', 14, 14);
+    hudLabel(usp.parts.anchors.slide, 'SLIDE UNIT', '#d6dee6', 16, -14);
+    hudLabel(usp.parts.anchors.frame, 'POLYMER FRAME', '#d6dee6', -84, 16);
+    hudLabel(usp.parts.anchors.mag, 'MAGAZINE', '#d6dee6', 14, 14);
+    hudLabel(usp.parts.anchors.frontSight, 'FIBER / GREEN', '#35ff6a', 16, -12);
+    hudLabel(usp.parts.anchors.rearSight, 'FIBER / RED', '#ff4038', -78, -12);
+  }else{
+    hudLabel(ar15.parts.anchors.pivot, 'FRONT PIVOT', '#d6dee6', -74, 16);
+    hudLabel(ar15.parts.anchors.pin, 'REAR TAKEDOWN PIN', '#d6dee6', 16, 16);
+    hudLabel(ar15.parts.anchors.upper, 'UPPER / BCG RAIL', '#d6dee6', 16, -14);
+    hudLabel(ar15.parts.anchors.lower, 'ANODIZED LOWER', '#d6dee6', 16, 14);
+    hudLabel(ar15.parts.anchors.bcg, 'BOLT CARRIER', '#d6dee6', 16, -14);
+    hudLabel(ar15.parts.anchors.bolt, 'BOLT UNLOCK', '#e8edf2', 16, 14);
+    hudLabel(ar15.parts.anchors.ch, 'CHARGING HANDLE', '#d6dee6', -92, -12);
+    hudLabel(ar15.parts.anchors.barrel, 'GAS / BARREL', '#d6dee6', 16, -14);
+    hudLabel(ar15.parts.anchors.spring, 'BUFFER SPRING', '#c3cdd7', 16, 14);
+    hudLabel(ar15.parts.anchors.hammer, 'HAMMER', '#d6dee6', -70, 16);
+  }
+  hudCtx.restore();
+}
+
+/* ============================================================
+   mode / UI wiring
+   ============================================================ */
+const btnUsp = document.getElementById('btn-usp');
+const btnAr = document.getElementById('btn-ar');
+const btnHud = document.getElementById('btn-hud');
+const btnPause = document.getElementById('btn-pause');
+const modeLine = document.getElementById('mode-line');
+
+function setMode(next){
+  mode = next;
+  cycleTime = 0;
+  usp.root.visible = (mode === 'usp');
+  ar15.root.visible = (mode === 'ar');
+  const home = viewHome[mode];
+  view.baseHalf = home.half;
+  view.target.copy(home.target);
+  view.theta = home.theta;
+  view.phi = home.phi;
+  view.zoom = home.zoom;
+  btnUsp.classList.toggle('active', mode==='usp');
+  btnAr.classList.toggle('active', mode==='ar');
+  modeLine.innerHTML = mode==='usp'
+    ? '<b>MODE:</b> USP MATCH / EXPLODED CYCLE'
+    : '<b>MODE:</b> AR-15 / PIVOT-PIN + BCG CYCLE';
+  const y = mode==='usp' ? -2.90 : -1.55;
+  shadow.position.y = y;
+  shadow.scale.set(mode==='usp' ? 1.0 : 1.35, 1, mode==='usp' ? 1.0 : 0.75);
+  applyCamera();
+}
+btnUsp.addEventListener('click', ()=> setMode('usp'));
+btnAr.addEventListener('click', ()=> setMode('ar'));
+btnHud.addEventListener('click', ()=>{ hudOn = !hudOn; btnHud.classList.toggle('active', hudOn); });
+btnPause.addEventListener('click', ()=>{ paused = !paused; btnPause.classList.toggle('active', paused); });
+btnHud.classList.add('active');
+window.addEventListener('keydown', e=>{
+  if(e.code === 'Digit1') setMode('usp');
+  if(e.code === 'Digit2') setMode('ar');
+  if(e.key === 'h' || e.key === 'H'){ hudOn = !hudOn; btnHud.classList.toggle('active', hudOn); }
+  if(e.code === 'Space'){ e.preventDefault(); paused = !paused; btnPause.classList.toggle('active', paused); }
+});
+
+/* ============================================================
+   render loop
+   ============================================================ */
+function animate(){
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastTime)/1000);
+  lastTime = now;
+  if(!paused) cycleTime += dt;
+
+  if(mode === 'usp'){
+    const duration = 8.0;
+    const t = (cycleTime % duration) / duration;
+    updateUSP(t);
+  }else{
+    const duration = 10.0;
+    const t = (cycleTime % duration) / duration;
+    updateAR15(t);
+  }
+
+  applyCamera();
+  drawHUD();
+  renderer.render(scene, camera);
+}
+renderer.setAnimationLoop(animate);
+setMode('usp');
+</script>
+</body>
+</html>

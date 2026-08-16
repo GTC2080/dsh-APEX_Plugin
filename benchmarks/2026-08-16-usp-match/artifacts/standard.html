@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USP Match · 低多边形机械分解演示</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #101216;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace; }
+  body { --acc: #ffcf4d; }
+  body.demo-ar { --acc: #6fe7ff; }
+
+  #stage { position: fixed; inset: 0; }
+  body.demo-usp #stage { background: radial-gradient(circle at 50% 36%, #e0e3e8 0%, #c4c9d0 55%, #a9afba 100%); }
+  body.demo-ar  #stage { background: radial-gradient(circle at 50% 30%, #2c313a 0%, #191d23 55%, #0d1014 100%); }
+
+  #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  /* CAD 网格 + 中心十字 */
+  #grid { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .6s;
+    background-image: linear-gradient(rgba(150,190,220,.14) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(150,190,220,.14) 1px, transparent 1px);
+    background-size: 44px 44px; }
+  body.demo-ar #grid { opacity: .55; }
+  #grid::before, #grid::after { content: ""; position: absolute; left: 50%; top: 50%; background: rgba(160,200,230,.18); }
+  #grid::before { width: 100%; height: 1px; transform: translate(-50%, -50%); }
+  #grid::after  { width: 1px; height: 100%; transform: translate(-50%, -50%); }
+
+  #scan { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.13) 0 1px, transparent 1px 3px); }
+  body.demo-ar #scan { opacity: .22; }
+  #vig { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.20) 100%); }
+
+  #fade { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+
+  #leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #leaders path { fill: none; stroke: rgba(255,255,255,.55); stroke-width: 1; stroke-dasharray: 3 3; }
+  body.demo-usp #leaders path { stroke: rgba(30,36,44,.6); }
+  #leaders circle { fill: var(--acc); }
+  #leaders #dimg path { stroke: var(--acc); stroke-width: 1; stroke-dasharray: none; }
+  #leaders #dimg text { fill: var(--acc); font-family: ui-monospace, monospace; font-size: 10px; }
+
+  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .label { position: absolute; transform: translate(-50%, -50%); font-size: 10px; letter-spacing: .06em;
+    color: #e8ebef; background: rgba(10,12,16,.66); border: 1px solid rgba(255,255,255,.14);
+    border-left: 2px solid var(--acc); padding: 2px 7px; white-space: nowrap; }
+  body.demo-usp .label { color: #26282c; background: rgba(236,239,243,.74); border-color: rgba(20,24,30,.28); }
+
+  #hud { position: absolute; top: 14px; left: 16px; pointer-events: none; z-index: 5; }
+  .panel { background: rgba(12,14,18,.72); border: 1px solid rgba(255,255,255,.13);
+    border-radius: 10px; padding: 10px 14px; color: #dfe4ea; backdrop-filter: blur(6px); }
+  body.demo-usp .panel { background: rgba(30,34,40,.6); }
+  #hud h1 { margin: 0; font-size: 15px; letter-spacing: .14em; color: var(--acc);
+    font-family: "Arial Black", "Segoe UI", sans-serif; font-weight: 900; }
+  #hud .sub { font-size: 10px; opacity: .78; margin-top: 3px; }
+  #stats { margin-top: 8px; font-size: 10px; line-height: 1.7; opacity: .92; }
+  #stats b { color: var(--acc); font-weight: 600; }
+  #phase { margin-top: 8px; font-size: 11px; color: var(--acc); min-width: 330px; }
+
+  #readouts { position: absolute; left: 16px; bottom: 16px; pointer-events: none; z-index: 5; }
+  #readouts .panel { font-size: 10px; line-height: 1.85; min-width: 210px; }
+  #readouts b { color: var(--acc); font-weight: 600; }
+
+  #controls { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; z-index: 6; }
+  .btn { pointer-events: auto; cursor: pointer; background: rgba(20,24,30,.74); color: #dfe4ea;
+    border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 6px 12px;
+    font: 600 11px/1 ui-monospace, monospace; letter-spacing: .05em; transition: all .15s; }
+  .btn:hover { border-color: var(--acc); color: var(--acc); }
+  .btn.on { background: var(--acc); color: #101318; border-color: var(--acc); }
+  .sep { width: 1px; height: 22px; background: rgba(255,255,255,.18); }
+  #scrub { width: 190px; accent-color: var(--acc); pointer-events: auto; cursor: pointer; }
+  #tl { font-size: 10px; color: #9aa2ac; min-width: 58px; text-align: center; }
+
+  #hint { position: absolute; right: 16px; bottom: 16px; pointer-events: none; z-index: 5;
+    font-size: 10px; color: #828a94; text-align: right; line-height: 1.7; }
+  body.demo-usp #hint { color: #4c525c; }
+
+  #err { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #101216; color: #ff8a80; font: 13px/1.8 ui-monospace, monospace; z-index: 99; padding: 40px; text-align: center; }
+
+  @media (max-width: 760px) {
+    #hud { top: 8px; left: 8px; } .panel { padding: 8px 10px; }
+    #hud h1 { font-size: 12px; } #phase { min-width: 0; }
+    #readouts { display: none; }
+    #controls { bottom: 8px; gap: 5px; } .btn { padding: 5px 8px; font-size: 10px; }
+    #scrub { width: 120px; } #hint { display: none; }
+  }
+</style>
+</head>
+<body class="demo-usp">
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="grid"></div>
+  <svg id="leaders" xmlns="http://www.w3.org/2000/svg"><g id="lg"></g></svg>
+  <div id="labels"></div>
+  <div id="scan"></div>
+  <div id="vig"></div>
+  <div id="fade"></div>
+</div>
+
+<header id="hud">
+  <div class="panel">
+    <h1 id="hTitle">USP MATCH · LOW-POLY FIELD STRIP</h1>
+    <div class="sub" id="hSub">程序化低多边形建模 · 分解 / 组装循环 · PS1 复古渲染</div>
+    <div id="stats">TRIS <b>0</b> · 部件 <b>0</b> · FPS <b>60</b></div>
+    <div id="phase">待机 · 整枪状态</div>
+  </div>
+</header>
+
+<aside id="readouts"><div class="panel" id="ro"></div></aside>
+
+<nav id="controls">
+  <button class="btn tab" id="tabUsp">USP MATCH</button>
+  <button class="btn tab" id="tabAr">AR-15</button>
+  <span class="sep"></span>
+  <button class="btn" id="btnPlay">▶ 循环</button>
+  <button class="btn" id="btnPause">⏸ 暂停</button>
+  <button class="btn" id="btnAsm">组装态</button>
+  <button class="btn" id="btnExp">分解态</button>
+  <span class="sep"></span>
+  <button class="btn spd" data-v="0.5">0.5×</button>
+  <button class="btn spd on" data-v="1">1×</button>
+  <button class="btn spd" data-v="2">2×</button>
+  <input type="range" id="scrub" min="0" max="1000" value="0">
+  <span id="tl">0.0s</span>
+</nav>
+
+<div id="hint">拖拽旋转 · 滚轮缩放 · 双击复位<br>空格 播放/暂停 · 1 / 2 切换演示</div>
+<div id="err" hidden></div>
+
+<script>
+/* ============================================================
+   程序化低多边形机械分解演示 —— USP Match + AR-15
+   全部模型由代码生成（无外部模型文件），Three.js 由 CDN 引入。
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var CDNS = [
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    'https://unpkg.com/three@0.160.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js'
+  ];
+  var errEl = document.getElementById('err');
+
+  function loadCDN(i) {
+    if (i >= CDNS.length) {
+      errEl.hidden = false;
+      errEl.textContent = 'Three.js 加载失败：请检查网络连接（需要访问 CDN），然后刷新页面。';
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = CDNS[i];
+    s.onload = function () {
+      if (window.THREE) {
+        try { init(); }
+        catch (e) {
+          errEl.hidden = false;
+          errEl.textContent = '初始化错误：' + (e && e.message ? e.message : e);
+          if (window.console) console.error(e);
+        }
+      } else loadCDN(i + 1);
+    };
+    s.onerror = function () { loadCDN(i + 1); };
+    document.head.appendChild(s);
+  }
+
+  /* ==================== 通用工具 ==================== */
+  var TAU = Math.PI * 2;
+  function clamp01(u) { return u < 0 ? 0 : (u > 1 ? 1 : u); }
+  function smooth(u) { u = clamp01(u); return u * u * (3 - 2 * u); }
+  /* 0→1(升)→保持→1→0(降) 的平滑脉冲，两端导数为 0，保证循环无跳变 */
+  function pulse(t, t0, t1, t2, t3) {
+    if (t <= t0 || t >= t3) return 0;
+    if (t < t1) return smooth((t - t0) / (t1 - t0));
+    if (t < t2) return 1;
+    return 1 - smooth((t - t2) / (t3 - t2));
+  }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  var G = {};            // 共享几何体缓存
+  function gBox() { return G.box || (G.box = new THREE.BoxGeometry(1, 1, 1)); }
+  function gCyl(seg) { return G['c' + seg] || (G['c' + seg] = new THREE.CylinderGeometry(1, 1, 1, seg)); }
+
+  var TRIS = 0;
+  function box(p, w, h, d, mat, x, y, z, rx, ry, rz) {
+    var m = new THREE.Mesh(gBox(), mat);
+    m.scale.set(w, h, d);
+    m.position.set(x, y, z);
+    if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
+    p.add(m); TRIS += 12; return m;
+  }
+  function cyl(p, r0, r1, len, seg, mat, x, y, z, ax) {
+    var m = new THREE.Mesh(gCyl(seg), mat);
+    m.scale.set(r0, r1, len);
+    m.position.set(x, y, z);
+    if (ax === 'x') m.rotation.z = Math.PI / 2;
+    else if (ax === 'z') m.rotation.x = Math.PI / 2;
+    p.add(m); TRIS += seg * 4; return m;
+  }
+  function tex(w, h, fn) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    fn(c.getContext('2d'), w, h);
+    var t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+    t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  function glowSprite(hex, size) {
+    var c = document.createElement('canvas'); c.width = c.height = 64;
+    var g = c.getContext('2d');
+    var r = (hex >> 16) & 255, gr = (hex >> 8) & 255, b = hex & 255;
+    var grad = g.createRadialGradient(32, 32, 1, 32, 32, 31);
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grad.addColorStop(0.28, 'rgba(' + r + ',' + gr + ',' + b + ',0.85)');
+    grad.addColorStop(1, 'rgba(' + r + ',' + gr + ',' + b + ',0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending
+    }));
+    sp.scale.set(size, size, 1);
+    return sp;
+  }
+
+  /* ==================== 材质调色板 ==================== */
+  var MAT = {
+    uspSlide:  new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.38, metalness: 0.85, flatShading: true }),
+    uspDark:   new THREE.MeshStandardMaterial({ color: 0x0e1013, roughness: 0.5,  metalness: 0.8,  flatShading: true }),
+    uspPort:   new THREE.MeshBasicMaterial({ color: 0x0a0c0e }),
+    uspFrame:  new THREE.MeshStandardMaterial({ color: 0x2b2e34, roughness: 0.85, metalness: 0.03, flatShading: true }),
+    uspBarrel: new THREE.MeshStandardMaterial({ color: 0xd8dce1, roughness: 0.28, metalness: 1.0,  flatShading: true }),
+    uspWeight: new THREE.MeshStandardMaterial({ color: 0x23272d, roughness: 0.4,  metalness: 0.85, flatShading: true }),
+    uspMag:    new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 0.5,  metalness: 0.7,  flatShading: true }),
+    uspSpring: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.35, metalness: 0.9,  flatShading: true }),
+    uspRod:    new THREE.MeshStandardMaterial({ color: 0xc9ced4, roughness: 0.3,  metalness: 0.95, flatShading: true }),
+    uspCtrl:   new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 0.55, metalness: 0.6,  flatShading: true }),
+    follower:  new THREE.MeshBasicMaterial({ color: 0xe0692a }),
+    fiberG:    new THREE.MeshBasicMaterial({ color: 0x54ff72 }),
+    fiberR:    new THREE.MeshBasicMaterial({ color: 0xff4d4d }),
+    arUpper:   new THREE.MeshStandardMaterial({ color: 0x1e2126, roughness: 0.5,  metalness: 0.75, flatShading: true }),
+    arLower:   new THREE.MeshStandardMaterial({ color: 0x1b1e22, roughness: 0.55, metalness: 0.7,  flatShading: true }),
+    arHand:    new THREE.MeshStandardMaterial({ color: 0x22262b, roughness: 0.6,  metalness: 0.45, flatShading: true }),
+    arBarrel:  new THREE.MeshStandardMaterial({ color: 0x33373e, roughness: 0.55, metalness: 0.9,  flatShading: true }),
+    arGas:     new THREE.MeshStandardMaterial({ color: 0x2a2e34, roughness: 0.5,  metalness: 0.85, flatShading: true }),
+    arBcg:     new THREE.MeshStandardMaterial({ color: 0x9ba1a9, roughness: 0.35, metalness: 0.95, flatShading: true }),
+    arPin:     new THREE.MeshStandardMaterial({ color: 0xb7bdc4, roughness: 0.3,  metalness: 0.9,  flatShading: true }),
+    arHammer:  new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.45, metalness: 0.85, flatShading: true }),
+    arCtrl:    new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.5,  metalness: 0.6,  flatShading: true }),
+    arStock:   new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.9,  metalness: 0.05, flatShading: true }),
+    arMag:     new THREE.MeshStandardMaterial({ color: 0x2a2e34, roughness: 0.55, metalness: 0.6,  flatShading: true }),
+    arPort:    new THREE.MeshBasicMaterial({ color: 0x0a0c0e })
+  };
+
+  var TEX = {};
+  TEX.stipple = tex(16, 16, function (g, w, h) {
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      g.fillStyle = ((x * 7 + y * 13 + x * y * 3) % 5 < 2) ? '#202329' : '#33373e';
+      g.fillRect(x, y, 1, 1);
+    }
+  });
+  TEX.coil = tex(32, 64, function (g, w, h) {
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var k = (Math.floor(x / 8) * 8 + y) % 16 < 8;
+      g.fillStyle = k ? '#a7adb5' : '#4b5058';
+      g.fillRect(x, y, 1, 1);
+    }
+  });
+  TEX.rail = tex(64, 16, function (g, w, h) {
+    g.fillStyle = '#20242a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#0d0f13';
+    for (var i = 0; i < 8; i++) g.fillRect(i * 8 + 2, 3, 3, 10);
+  });
+  TEX.decal = tex(256, 64, function (g) {
+    g.clearRect(0, 0, 256, 64);
+    g.textBaseline = 'middle';
+    g.font = 'bold 26px "Courier New", monospace';
+    g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,0.85)';
+    g.strokeText('USP MATCH', 10, 30);
+    g.fillStyle = '#e8ebef'; g.fillText('USP MATCH', 10, 30);
+    g.font = 'bold 15px "Courier New", monospace';
+    g.strokeText('9x19', 10, 54);
+    g.fillStyle = '#9aa2ac'; g.fillText('9x19', 10, 54);
+  });
+  MAT.uspGrip = new THREE.MeshStandardMaterial({ map: TEX.stipple, color: 0xffffff, roughness: 0.9, metalness: 0.02, flatShading: true });
+  MAT.uspCoil = new THREE.MeshStandardMaterial({ map: TEX.coil, color: 0xffffff, roughness: 0.45, metalness: 0.85, flatShading: true });
+  MAT.arCoil  = new THREE.MeshStandardMaterial({ map: TEX.coil, color: 0xffffff, roughness: 0.4,  metalness: 0.9,  flatShading: true });
+  MAT.arRail  = new THREE.MeshStandardMaterial({ map: TEX.rail, color: 0xffffff, roughness: 0.55, metalness: 0.7, flatShading: true });
+
+  /* ==================== 场景 / 灯光 ==================== */
+  var scene, camera, renderer, canvas, container;
+  var key, fill, rim;
+  var cam = { az: -0.34, el: 0.16, tx: 1.34, ty: -1.15, hw: 2.12, hh: 1.98, zoom: 1 };
+  var camLerp = null;
+  var R = 14;
+  var GRID = 0.012;   // PS1 顶点级抖动网格
+  var RES = 0.42;     // 内部分辨率系数（低分辨率 + 最近邻放大 = PS1 像素感）
+
+  function snapVec(v) {
+    v.x = Math.round(v.x / GRID) * GRID;
+    v.y = Math.round(v.y / GRID) * GRID;
+    v.z = Math.round(v.z / GRID) * GRID;
+  }
+
+  /* ==================== USP MATCH ==================== */
+  function buildUSP() {
+    var root = new THREE.Group();
+    var parts = {};
+    var M = MAT;
+    var t0 = TRIS;
+
+    /* ---- 聚合物下机匣（静态） ---- */
+    var frame = new THREE.Group();
+    box(frame, 1.00, 0.25, 0.30, M.uspFrame, 0.06, 0.005, 0);        // 套筒座/导轨区
+    box(frame, 0.34, 0.18, 0.28, M.uspFrame, 0.63, -0.11, 0);         // 防尘盖
+    box(frame, 0.08, 0.12, 0.26, M.uspFrame, 0.06, -0.02, 0);         // 连接段
+    box(frame, 0.07, 0.20, 0.045, M.uspFrame, 0.56, -0.24, 0);        // 扳机护圈前
+    box(frame, 0.45, 0.06, 0.045, M.uspFrame, 0.34, -0.33, 0);        // 扳机护圈底
+    box(frame, 0.07, 0.14, 0.045, M.uspFrame, 0.10, -0.21, 0);        // 扳机护圈后
+    var grip = box(frame, 0.34, 0.92, 0.30,
+      [M.uspFrame, M.uspFrame, M.uspFrame, M.uspFrame, M.uspGrip, M.uspGrip],
+      -0.30, -0.62, 0, 0, 0, -0.16);                                  // 握把（点阵防滑纹）
+    box(frame, 0.36, 0.10, 0.32, M.uspFrame, -0.32, -1.06, 0, 0, 0, -0.16); // 弹匣井裙边
+    box(frame, 0.24, 0.09, 0.28, M.uspFrame, -0.50, -0.13, 0, 0, 0, -0.5);  // 海狸尾
+    box(frame, 0.06, 0.15, 0.035, M.uspCtrl, 0.15, -0.23, 0, 0, 0, 0.15);   // 扳机
+    box(frame, 0.10, 0.05, 0.07, M.uspCtrl, -0.28, 0.10, 0.19);        // 保险/待击解脱杆
+    box(frame, 0.16, 0.05, 0.06, M.uspCtrl, 0.02, 0.10, 0.19);         // 空挂释放杆
+    box(frame, 0.05, 0.12, 0.07, M.uspCtrl, -0.16, -0.22, 0.185);      // 弹匣释放钮
+    box(frame, 0.06, 0.15, 0.06, M.uspCtrl, -0.44, 0.02, 0, 0, 0, -0.25);   // 击锤
+    box(frame, 0.05, 0.03, 0.05, M.uspCtrl, -0.47, 0.09, 0, 0, 0, -0.25);   // 击锤凸脊
+    root.add(frame);
+
+    /* ---- 深色金属套筒（后拉运动） ---- */
+    var slide = new THREE.Group();
+    box(slide, 1.37, 0.30, 0.34, M.uspSlide, 0.265, 0.25, 0);           // 顶部主体
+    box(slide, 1.37, 0.20, 0.04, M.uspSlide, 0.265, 0.10, 0.15);        // 右壁
+    box(slide, 1.37, 0.20, 0.04, M.uspSlide, 0.265, 0.10, -0.15);       // 左壁
+    box(slide, 1.30, 0.10, 0.22, M.uspSlide, 0.27, 0.44, 0);            // 顶部瞄准滑道
+    box(slide, 0.16, 0.09, 0.34, M.uspSlide, 0.895, 0.425, 0, 0, 0, -0.55);  // 前倒角上
+    box(slide, 0.16, 0.09, 0.34, M.uspSlide, 0.895, 0.075, 0, 0, 0, 0.55);   // 前倒角下
+    box(slide, 0.16, 0.09, 0.34, M.uspSlide, -0.365, 0.425, 0, 0, 0, 0.55);  // 后倒角上
+    box(slide, 0.16, 0.09, 0.34, M.uspSlide, -0.365, 0.075, 0, 0, 0, -0.55); // 后倒角下
+    for (var i = 0; i < 6; i++) {                                       // 后部防滑纹
+      var sx = -0.41 + i * 0.026;
+      box(slide, 0.007, 0.16, 0.008, M.uspDark, sx, 0.26, 0.174);
+      box(slide, 0.007, 0.16, 0.008, M.uspDark, sx, 0.26, -0.174);
+    }
+    for (var j = 0; j < 4; j++) {                                       // 前部防滑纹
+      var fx = 0.60 + j * 0.03;
+      box(slide, 0.007, 0.10, 0.008, M.uspDark, fx, 0.17, 0.174);
+      box(slide, 0.007, 0.10, 0.008, M.uspDark, fx, 0.17, -0.174);
+    }
+    box(slide, 0.28, 0.13, 0.006, M.uspPort, 0.28, 0.30, 0.175);        // 抛壳窗
+    box(slide, 0.04, 0.05, 0.03, M.uspDark, 0.45, 0.33, 0.185);         // 拉壳钩
+    var decal = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.13),
+      new THREE.MeshBasicMaterial({ map: TEX.decal, transparent: true }));
+    decal.position.set(0.02, 0.185, 0.181);                             // 侧面铭文
+    slide.add(decal); TRIS += 2;
+    /* 红色光纤后准星 */
+    box(slide, 0.12, 0.06, 0.12, M.uspSlide, -0.36, 0.48, 0);
+    box(slide, 0.05, 0.06, 0.05, M.uspSlide, -0.37, 0.535, 0.045);
+    box(slide, 0.05, 0.06, 0.05, M.uspSlide, -0.37, 0.535, -0.045);
+    box(slide, 0.014, 0.014, 0.014, M.fiberR, -0.424, 0.535, 0.045);
+    box(slide, 0.014, 0.014, 0.014, M.fiberR, -0.424, 0.535, -0.045);
+    var rgl = glowSprite(0xff4d4d, 0.12); rgl.position.set(-0.424, 0.535, 0.045); slide.add(rgl);
+    var rgl2 = glowSprite(0xff4d4d, 0.12); rgl2.position.set(-0.424, 0.535, -0.045); slide.add(rgl2);
+    parts.slide = slide; root.add(slide);
+
+    /* ---- 亮银色枪管（前拉分离） ---- */
+    var barrel = new THREE.Group();
+    cyl(barrel, 0.090, 0.090, 1.60, 8, M.uspBarrel, 0.50, 0, 0, 'x');
+    cyl(barrel, 0.105, 0.105, 0.22, 8, M.uspBarrel, -0.19, 0, 0, 'x');  // 弹膛段
+    cyl(barrel, 0.095, 0.095, 0.02, 8, M.uspBarrel, 0.60, 0, 0, 'x');  // 定位环
+    parts.barrel = barrel; root.add(barrel);
+
+    /* ---- 前部 Match 配重 / 补偿器（带绿色光纤准星） ---- */
+    var weight = new THREE.Group();
+    box(weight, 0.40, 0.46, 0.32, M.uspWeight, 1.22, 0.13, 0);
+    box(weight, 0.16, 0.10, 0.06, M.uspWeight, 1.14, 0.41, 0);          // 准星座
+    box(weight, 0.05, 0.10, 0.045, M.uspDark, 1.10, 0.51, 0);           // 准星片
+    box(weight, 0.05, 0.012, 0.10, M.uspPort, 1.06, 0.361, 0.07);       // 顶部泄气槽
+    box(weight, 0.05, 0.012, 0.10, M.uspPort, 1.06, 0.361, -0.07);
+    box(weight, 0.05, 0.012, 0.10, M.uspPort, 1.22, 0.361, 0.07);
+    box(weight, 0.05, 0.012, 0.10, M.uspPort, 1.22, 0.361, -0.07);
+    box(weight, 0.012, 0.05, 0.05, M.uspPort, 1.425, 0.10, 0.08);       // 前端口
+    box(weight, 0.012, 0.05, 0.05, M.uspPort, 1.425, 0.10, -0.08);
+    cyl(weight, 0.011, 0.011, 0.075, 6, M.fiberG, 1.10, 0.565, 0, 'x'); // 绿色光纤管
+    var ggl = glowSprite(0x54ff72, 0.24); ggl.position.set(1.10, 0.565, 0); weight.add(ggl);
+    parts.weight = weight; root.add(weight);
+
+    /* ---- 复进簧 / 导杆 ---- */
+    var spring = new THREE.Group();
+    cyl(spring, 0.05, 0.05, 0.42, 8, M.uspCoil, 0.40, -0.02, 0, 'x');
+    cyl(spring, 0.018, 0.018, 0.52, 6, M.uspRod, 0.36, -0.02, 0, 'x');
+    parts.spring = spring; root.add(spring);
+
+    /* ---- 弹匣（向下分离） ---- */
+    var mag = new THREE.Group();
+    box(mag, 0.28, 1.20, 0.22, M.uspMag, 0, 0, 0);
+    box(mag, 0.30, 0.10, 0.24, M.uspMag, 0, -0.63, 0);                   // 底板
+    box(mag, 0.20, 0.07, 0.13, M.follower, 0, 0.53, 0);                  // 托弹板（橙色）
+    box(mag, 0.02, 0.06, 0.04, M.uspDark, 0, 0.575, 0.085);              // 抱弹口
+    box(mag, 0.02, 0.06, 0.04, M.uspDark, 0, 0.575, -0.085);
+    for (var k = 0; k < 4; k++) box(mag, 0.004, 0.03, 0.006, M.uspPort, 0.02, -0.30 + k * 0.09, 0.112); // 余弹观察孔
+    mag.position.set(-0.34, -0.95, 0);
+    mag.rotation.z = -0.16;
+    parts.mag = mag; root.add(mag);
+
+    /* ---- 部件配置：基位 + 爆炸偏移 ---- */
+    var cfg = {
+      slide:  { base: new THREE.Vector3(0, 0, 0),      off: new THREE.Vector3(-0.30, 0, 0) },
+      barrel: { base: new THREE.Vector3(0, 0, 0),      off: new THREE.Vector3(1.30, 0, 0) },
+      weight: { base: new THREE.Vector3(0, 0, 0),      off: new THREE.Vector3(1.85, 0, 0) },
+      spring: { base: new THREE.Vector3(0, 0, 0),      off: new THREE.Vector3(1.05, -0.16, 0) },
+      mag:    { base: new THREE.Vector3(-0.34, -0.95, 0), off: new THREE.Vector3(0, -1.15, 0) }
+    };
+    var tmp = new THREE.Vector3();
+
+    function update(t) {
+      var fSlide = pulse(t, 2.3, 3.4, 8.9, 9.8);
+      var fBarrel = pulse(t, 3.4, 4.8, 7.6, 8.9);
+      var fMag = pulse(t, 1.2, 2.3, 8.9, 9.8);
+      ['slide', 'barrel', 'weight', 'spring'].forEach(function (name) {
+        var f = (name === 'slide') ? fSlide : fBarrel;
+        tmp.copy(cfg[name].base).addScaledVector(cfg[name].off, f);
+        parts[name].position.copy(tmp); snapVec(parts[name].position);
+      });
+      tmp.copy(cfg.mag.base).addScaledVector(cfg.mag.off, fMag);
+      parts.mag.position.copy(tmp); snapVec(parts.mag.position);
+      return { fSlide: fSlide, fBarrel: fBarrel, fMag: fMag, fWeight: fBarrel };
+    }
+
+    return {
+      root: root, parts: parts, update: update, total: 10, tExploded: 6.2,
+      tris: TRIS - t0, partCount: 7,
+      title: 'USP MATCH · LOW-POLY FIELD STRIP',
+      sub: '程序化低多边形建模 · 分解 / 组装循环 · PS1 复古渲染',
+      phases: [
+        [0.00, '待机 · 整枪状态'],
+        [1.20, '分解 1/4 · 弹匣向下退出'],
+        [2.30, '分解 2/4 · 套筒后拉锁定 · 枪管外露'],
+        [3.40, '分解 3/4 · 枪管 / 配重 / 复进簧前移分离'],
+        [4.80, '分解视图 · 静止展示'],
+        [7.60, '组装 1/3 · 枪管与配重、复进簧复位'],
+        [8.90, '组装 2/3 · 套筒复位 · 弹匣向上滑入握把'],
+        [9.80, '待机 · 整枪状态']
+      ],
+      readout: function (t, f) {
+        var u = 135; // 单位 → mm 换算
+        return '套筒行程 <b>' + (0.30 * f.fSlide * u).toFixed(1) + ' mm</b><br>' +
+               '枪管分离 <b>' + (1.30 * f.fBarrel * u).toFixed(1) + ' mm</b><br>' +
+               '配重分离 <b>' + (1.85 * f.fWeight * u).toFixed(1) + ' mm</b><br>' +
+               '弹匣脱出 <b>' + (1.15 * f.fMag * u).toFixed(1) + ' mm</b>';
+      },
+      dim: function (t, f) {
+        var a = new THREE.Vector3(-0.42 - 0.30 * f.fSlide, -2.95, 0);
+        var b = new THREE.Vector3(1.42 + 1.85 * f.fWeight, -2.95, 0);
+        var len = (b.x - a.x) * 135;
+        return { a: a, b: b, text: '分解视图全长 ' + len.toFixed(0) + ' mm' };
+      },
+      labels: [
+        { obj: 'slide',  local: new THREE.Vector3(0.05, 0.15, 0),    dx: -150, dy: -80, text: '套筒 SLIDE · 深色钢 · 后拉锁定' },
+        { obj: 'slide',  local: new THREE.Vector3(-0.44, 0.40, 0),   dx: -170, dy: 6,   text: '红色光纤后准星' },
+        { obj: 'barrel', local: new THREE.Vector3(0.35, 0.02, 0),    dx: 0,    dy: 100, text: '亮银枪管 BARREL' },
+        { obj: 'weight', local: new THREE.Vector3(0, 0.10, 0),       dx: 60,   dy: -120, text: 'MATCH 配重 / 补偿器' },
+        { obj: 'weight', local: new THREE.Vector3(0.10, 0.52, 0),    dx: 150,  dy: -30, text: '绿色光纤前准星' },
+        { obj: 'spring', local: new THREE.Vector3(0, 0, 0),          dx: 110,  dy: -90, text: '复进簧 / 导杆' },
+        { world: new THREE.Vector3(-0.30, -0.55, 0), dx: -190, dy: 40, text: '聚合物下机匣 FRAME' },
+        { obj: 'mag',    local: new THREE.Vector3(0, -0.15, 0),      dx: 150,  dy: 30,  text: '弹匣 MAGAZINE' }
+      ]
+    };
+  }
+
+  /* ==================== AR-15（高级机械演示） ==================== */
+  function buildAR() {
+    var root = new THREE.Group();
+    var M = MAT;
+    var parts = {};
+    var t0 = TRIS;
+
+    /* ---- 上机匣（绕前枢轴打开） ---- */
+    var pivot = new THREE.Group(); pivot.position.set(0.42, 0.13, 0);
+    root.add(pivot);
+    var upper = new THREE.Group(); pivot.add(upper);
+
+    box(upper, 1.90, 0.30, 0.26, M.arUpper, -0.42, 0.20, -0.03);      // 主体芯
+    box(upper, 0.99, 0.30, 0.06, M.arUpper, -0.875, 0.20, 0.13);      // 右壁后段
+    box(upper, 0.59, 0.30, 0.06, M.arUpper, 0.235, 0.20, 0.13);       // 右壁前段（中间=抛壳窗开口）
+    box(upper, 0.32, 0.02, 0.02, M.arPort, -0.22, 0.055, 0.13);       // 抛壳窗下沿
+    box(upper, 1.90, 0.06, 0.24, [M.arUpper, M.arUpper, M.arRail, M.arUpper, M.arUpper, M.arUpper], -0.42, 0.38, 0); // 皮轨
+    box(upper, 0.08, 0.10, 0.02, M.arUpper, -0.44, 0.29, 0.17, 0, 0.5, 0);   // 黄铜挡壳板
+    cyl(upper, 0.035, 0.035, 0.06, 8, M.arCtrl, 0.18, 0.29, 0.14, 'z');      // 辅助推机柄
+    box(upper, 0.08, 0.06, 0.04, M.arUpper, -1.27, 0.44, 0);                 // 后照门
+    box(upper, 0.16, 0.10, 0.18, M.arUpper, 0, 0, 0);                        // 前枢轴耳
+    box(upper, 0.16, 0.10, 0.18, M.arUpper, -1.37, 0, 0);                     // 后分解销耳
+
+    /* 枪管 / 护木 / 导气结构（随上机匣运动） */
+    cyl(upper, 0.055, 0.055, 2.62, 8, M.arBarrel, 0.97, -0.13, 0, 'x');
+    box(upper, 0.67, 0.21, 0.28, M.arHand, 0.865, -0.155, 0);         // 护木
+    [1.02, 1.17, 1.32, 1.47].forEach(function (wx) {
+      box(upper, 0.05, 0.012, 0.30, M.arPort, wx - 0.42, -0.049, 0);  // 顶部散热槽
+      box(upper, 0.05, 0.03, 0.012, M.arPort, wx - 0.42, -0.19, 0.1415);
+      box(upper, 0.05, 0.03, 0.012, M.arPort, wx - 0.42, -0.19, -0.1415);
+    });
+    var gasBlock = box(upper, 0.12, 0.16, 0.12, M.arGas, 1.26, -0.07, 0);    // 导气箍
+    cyl(upper, 0.015, 0.015, 0.67, 6, M.arGas, 0.865, -0.04, 0, 'x');        // 导气管
+    box(upper, 0.05, 0.44, 0.045, M.arGas, 1.26, 0.23, 0);                   // A2 准星座
+    cyl(upper, 0.012, 0.012, 0.06, 6, M.arGas, 1.26, 0.47, 0, 'y');          // 准星尖
+    cyl(upper, 0.075, 0.075, 0.18, 8, M.arBarrel, 2.29, -0.13, 0, 'x');      // 消焰器
+    box(upper, 0.012, 0.04, 0.05, M.arPort, 2.29, -0.045, 0);                // 消焰器槽
+    box(upper, 0.012, 0.04, 0.05, M.arPort, 2.29, -0.13, 0.086, 0, Math.PI / 2, 0);
+    box(upper, 0.012, 0.04, 0.05, M.arPort, 2.29, -0.13, -0.086, 0, Math.PI / 2, 0);
+
+    /* ---- 枪机框 BCG + 枪机头 + 拉机柄（沿上机匣轴向运动） ---- */
+    var bcg = new THREE.Group(); bcg.position.set(-1.01, 0.20, 0);
+    upper.add(bcg);
+    box(bcg, 0.72, 0.16, 0.22, M.arBcg, 0, 0, 0);                      // 枪机框主体
+    box(bcg, 0.16, 0.08, 0.08, M.arBcg, 0.24, 0.14, 0);                // 导气键
+    var bolt = new THREE.Group(); bolt.position.set(0.59, 0, 0);
+    bcg.add(bolt);
+    cyl(bolt, 0.09, 0.09, 0.16, 8, M.arBcg, 0, 0, 0, 'x');             // 枪机头
+    for (var i = 0; i < 6; i++) {                                      // 闭锁凸笋
+      var a = i / 6 * TAU;
+      box(bolt, 0.03, 0.035, 0.035, M.arBcg, 0.045, Math.cos(a) * 0.075, Math.sin(a) * 0.075, -a, 0, 0);
+    }
+    box(bolt, 0.05, 0.035, 0.02, M.arBcg, 0.02, 0.075, 0);             // 拉壳钩
+    cyl(bolt, 0.012, 0.012, 0.025, 6, M.arBcg, 0.085, -0.01, 0, 'x');  // 抛壳挺
+    var ch = new THREE.Group(); ch.position.set(-0.36, 0.39, 0);
+    bcg.add(ch);
+    box(ch, 0.12, 0.06, 0.26, M.arCtrl, 0, 0, 0);                      // 拉机柄体
+    box(ch, 0.04, 0.04, 0.05, M.arCtrl, 0, -0.03, -0.14);              // 左拉柄
+    box(ch, 0.03, 0.03, 0.04, M.arCtrl, 0, -0.03, 0.14);               // 双面拉柄（右）
+
+    /* ---- 下机匣（静态，含剖面可见内部机件） ---- */
+    var lower = new THREE.Group();
+    box(lower, 1.60, 0.10, 0.30, M.arLower, -0.25, 0.13, 0);           // 顶部导轨条
+    box(lower, 1.60, 0.08, 0.28, M.arLower, -0.25, -0.08, 0);          // 底部条
+    box(lower, 1.40, 0.16, 0.02, M.arPort, -0.25, 0.02, 0);            // 剖面暗色内壁
+    box(lower, 0.16, 0.10, 0.24, M.arLower, 0.42, 0.13, 0);            // 前分解销耳
+    box(lower, 0.20, 0.10, 0.24, M.arLower, -0.88, 0.12, 0);           // 后分解销耳
+    box(lower, 0.22, 0.26, 0.26, M.arLower, -1.10, 0.05, 0);           // 缓冲管座
+    box(lower, 0.30, 0.55, 0.26, M.arLower, -0.32, -0.28, 0);          // 弹匣井
+    box(lower, 0.34, 0.12, 0.26, M.arLower, -0.32, 0.03, 0);           // 弹匣井连接段
+    box(lower, 0.06, 0.38, 0.05, M.arLower, -0.50, -0.30, 0);          // 扳机护圈前
+    box(lower, 0.34, 0.05, 0.05, M.arLower, -0.64, -0.48, 0);          // 扳机护圈底
+    box(lower, 0.06, 0.34, 0.05, M.arLower, -0.78, -0.30, 0);          // 扳机护圈后
+    box(lower, 0.08, 0.18, 0.06, M.arHammer, -0.92, -0.02, 0, 0, 0, -0.15);  // 击锤（待击位）
+    box(lower, 0.05, 0.14, 0.04, M.arCtrl, -0.64, -0.30, 0, 0, 0, 0.12);     // 扳机
+    box(lower, 0.05, 0.07, 0.04, M.arCtrl, -0.74, -0.02, 0);                 // 阻铁
+    box(lower, 0.05, 0.06, 0.05, M.arCtrl, -0.28, 0.02, 0.17);               // 空仓挂机杆
+    box(lower, 0.035, 0.07, 0.05, M.arCtrl, -0.22, -0.13, 0.165);            // 弹匣释放钮
+    cyl(lower, 0.028, 0.028, 0.06, 8, M.arCtrl, -0.55, 0.03, 0.17, 'z');     // 保险拨杆轴
+    box(lower, 0.07, 0.016, 0.03, M.arCtrl, -0.52, 0.03, 0.17, 0, 0, 0.7);   // 保险拨杆（双面）
+    box(lower, 0.30, 0.62, 0.24, M.arStock, -0.55, -0.75, 0, 0, 0, -0.22);   // 握把
+    cyl(lower, 0.09, 0.09, 0.73, 8, M.arLower, -1.485, 0.05, 0, 'x');        // 缓冲管
+    cyl(lower, 0.055, 0.055, 0.42, 8, M.arCoil, -2.05, 0.05, 0, 'x');        // 复进簧（外露段）
+    box(lower, 1.15, 0.05, 0.05, M.arStock, -1.75, 0.13, 0);                 // 枪托顶梁
+    box(lower, 0.10, 0.36, 0.12, M.arStock, -2.35, -0.02, 0);                // 枪托底板
+    root.add(lower);
+
+    /* ---- 分解销 ---- */
+    var pinFront = cyl(root, 0.05, 0.05, 0.42, 8, M.arPin, 0.42, 0.13, 0, 'z');
+    var pinRear = cyl(root, 0.045, 0.045, 0.42, 8, M.arPin, -0.95, 0.13, 0, 'z');
+
+    /* ---- 弹匣 ---- */
+    var mag = new THREE.Group();
+    box(mag, 0.30, 1.00, 0.20, M.arMag, 0, 0, 0);
+    box(mag, 0.32, 0.06, 0.22, M.arMag, 0, -0.53, 0);
+    box(mag, 0.22, 0.06, 0.12, M.follower, 0, 0.44, 0);
+    for (var k = 0; k < 4; k++) box(mag, 0.004, 0.03, 0.006, M.arPort, 0.02, -0.20 + k * 0.09, 0.102);
+    mag.position.set(-0.32, -1.06, 0);
+    root.add(mag);
+
+    parts.pivot = pivot; parts.upper = upper; parts.bcg = bcg; parts.bolt = bolt;
+    parts.ch = ch; parts.pinRear = pinRear; parts.mag = mag; parts.gasBlock = gasBlock;
+
+    function update(t) {
+      var fRack = pulse(t, 1.0, 1.9, 1.9, 2.8);
+      var fMag = pulse(t, 3.6, 4.6, 13.0, 14.0);
+      var fPin = pulse(t, 4.6, 5.6, 15.0, 16.0);
+      var fPivot = pulse(t, 5.6, 7.2, 14.0, 15.0);
+      var fBcg = pulse(t, 7.2, 9.2, 12.6, 14.0);
+      pivot.rotation.z = -0.42 * fPivot;
+      bcg.position.x = -1.01 - 0.18 * fRack - 0.55 * fBcg;
+      snapVec(bcg.position);
+      pinRear.position.z = 0.42 * fPin;
+      snapVec(pinRear.position);
+      mag.position.y = -1.06 - 0.90 * fMag;
+      snapVec(mag.position);
+      var u = clamp01(fRack + fBcg - fRack * fBcg);
+      bolt.rotation.x = 0.38 * smooth((u - 0.05) / 0.15);
+      return { fRack: fRack, fMag: fMag, fPin: fPin, fPivot: fPivot, fBcg: fBcg };
+    }
+
+    return {
+      root: root, parts: parts, update: update, total: 16, tExploded: 10.9,
+      tris: TRIS - t0, partCount: 16,
+      title: 'AR-15 · SLOW-MO DISASSEMBLY',
+      sub: '技术分解序列 · 绕枢轴开合 · CAD 标注 · 影棚布光',
+      phases: [
+        [0.00, '待机 · 整枪状态'],
+        [1.00, '循环演示 · 拉机柄后拉 · 枪机头旋转开锁'],
+        [2.80, '待机'],
+        [3.60, '分解 1/5 · 卸下弹匣'],
+        [4.60, '分解 2/5 · 后分解销退出'],
+        [5.60, '分解 3/5 · 上机匣绕前枢轴打开'],
+        [7.20, '分解 4/5 · 枪机框后移抽出 · 枪机头开锁'],
+        [9.20, '分解视图 · 静止展示'],
+        [12.60, '组装 · 枪机框回装 · 枪机头闭锁'],
+        [14.00, '组装 · 上机匣闭合'],
+        [15.00, '组装 · 后分解销复位']
+      ],
+      readout: function (t, f) {
+        return '上机匣开角 <b>' + (f.fPivot * 0.42 * 57.3).toFixed(1) + '°</b><br>' +
+               'BCG 行程 <b>' + ((0.18 * f.fRack + 0.55 * f.fBcg) * 170).toFixed(1) + ' mm</b><br>' +
+               '枪机头转角 <b>' + (bolt.rotation.x * 57.3).toFixed(1) + '°</b><br>' +
+               '后分解销 <b>' + (f.fPin * 100).toFixed(0) + '%</b> 退出<br>' +
+               '弹匣 <b>' + (f.fMag * 100).toFixed(0) + '%</b> 脱出';
+      },
+      dim: function (t, f) {
+        return {
+          a: new THREE.Vector3(-1.05, -2.55, 0),
+          b: new THREE.Vector3(0.55, -2.55, 0),
+          text: '机匣组件长度 ' + (1.6 * 170).toFixed(0) + ' mm'
+        };
+      },
+      labels: [
+        { obj: 'upper',  local: new THREE.Vector3(0.60, 0.25, 0),    dx: -160, dy: -70, text: '上机匣 UPPER' },
+        { world: new THREE.Vector3(-0.25, -0.06, 0), dx: -180, dy: 50, text: '下机匣 LOWER' },
+        { obj: 'bcg',    local: new THREE.Vector3(0.25, 0.02, 0),    dx: -150, dy: 10, text: '枪机框 BCG' },
+        { obj: 'bolt',   local: new THREE.Vector3(0.02, 0, 0.08),    dx: -30,  dy: 150, text: '枪机头 BOLT · 旋转开锁' },
+        { obj: 'ch',     local: new THREE.Vector3(0, 0, 0),          dx: -130, dy: -110, text: '拉机柄 CHARGING HANDLE' },
+        { obj: 'bolt',   local: new THREE.Vector3(0.09, -0.02, 0.05), dx: 170, dy: 60, text: '抛壳挺 EJECTOR' },
+        { world: new THREE.Vector3(-2.02, 0.05, 0), dx: -150, dy: -80, text: '缓冲管 / 复进簧' },
+        { world: new THREE.Vector3(-0.92, -0.02, 0), dx: 150, dy: 80, text: '击锤 HAMMER' },
+        { world: new THREE.Vector3(-0.64, -0.28, 0), dx: 190, dy: 90, text: '扳机 / 阻铁' },
+        { world: new THREE.Vector3(-0.55, 0.03, 0.17), dx: 190, dy: -30, text: '保险 SELECTOR' },
+        { obj: 'mag',    local: new THREE.Vector3(0, -0.20, 0),      dx: 170, dy: 20, text: '弹匣 MAGAZINE' },
+        { obj: 'gasBlock', local: new THREE.Vector3(0, 0.08, 0),     dx: 40, dy: -130, text: '导气结构 GAS SYSTEM' },
+        { obj: 'pinRear', local: new THREE.Vector3(0, 0, 0),         dx: 190, dy: 10, text: '后分解销 TAKEDOWN PIN' }
+      ]
+    };
+  }
+
+  /* ==================== 渲染框架 ==================== */
+  var stage, labelsEl, leadersPath, leadersCircles, svgNS = 'http://www.w3.org/2000/svg';
+  var demos = {}, demo = null, demoT = {}, playing = true, speed = 1;
+  var clock = new THREE.Clock();
+  var tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
+  var scrubDragging = false;
+  var fps = 60, fpsAcc = 0, fpsN = 0, fpsT = 0;
+
+  function init() {
+    stage = document.getElementById('stage');
+    canvas = document.getElementById('gl');
+    labelsEl = document.getElementById('labels');
+    leadersPath = document.createElementNS(svgNS, 'path');
+    leadersCircles = document.createElementNS(svgNS, 'g');
+    document.getElementById('lg').appendChild(leadersPath);
+    document.getElementById('lg').appendChild(leadersCircles);
+
+    scene = new THREE.Scene();
+    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+
+    key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(6, 9, 5); scene.add(key);
+    fill = new THREE.DirectionalLight(0xbfd4ff, 0.5); fill.position.set(-5, 2, -4); scene.add(fill);
+    rim = new THREE.DirectionalLight(0xffffff, 0.9); rim.position.set(-3, 3, 7); scene.add(rim);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.30));
+
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: true });
+    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(1);
+
+    demos.usp = buildUSP();
+    demos.ar = buildAR();
+    demoT.usp = 0; demoT.ar = 0;
+
+    wireUI();
+    switchDemo('usp', true);
+    window.addEventListener('resize', resize);
+    resize();
+    clock.getDelta();
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- 相机 ---------- */
+  function applyCam() {
+    var aspect = stage.clientWidth / Math.max(1, stage.clientHeight);
+    var halfH = Math.max(cam.hh, cam.hw / aspect);
+    var halfW = halfH * aspect;
+    camera.left = -halfW; camera.right = halfW;
+    camera.top = halfH; camera.bottom = -halfH;
+    camera.position.set(
+      cam.tx + R * Math.cos(cam.el) * Math.sin(cam.az),
+      cam.ty + R * Math.sin(cam.el),
+      R * Math.cos(cam.el) * Math.cos(cam.az)
+    );
+    camera.lookAt(cam.tx, cam.ty, 0);
+    camera.zoom = cam.zoom;
+    camera.updateProjectionMatrix();
+  }
+
+  function resize() {
+    var w = Math.max(320, stage.clientWidth);
+    var h = Math.max(200, stage.clientHeight);
+    var iw = Math.max(320, Math.round(h * RES * (w / h)));
+    var ih = Math.max(200, Math.round(h * RES));
+    renderer.setSize(iw, ih, false);
+    applyCam();
+  }
+
+  function switchDemo(id, instant) {
+    var d = demos[id];
+    if (!d) return;
+    if (demo && demo.root) scene.remove(demo.root);
+    scene.add(d.root);
+    demo = d;
+    document.body.className = 'demo-' + id;
+    document.getElementById('hTitle').textContent = d.title;
+    document.getElementById('hSub').textContent = d.sub;
+    document.getElementById('tabUsp').classList.toggle('on', id === 'usp');
+    document.getElementById('tabAr').classList.toggle('on', id === 'ar');
+
+    /* 相机目标平滑过渡 */
+    var from = { az: cam.az, el: cam.el, tx: cam.tx, ty: cam.ty };
+    var to = (id === 'usp')
+      ? { az: -0.34, el: 0.16, tx: 1.34, ty: -1.15, hw: 2.12, hh: 1.98 }
+      : { az: -0.30, el: 0.15, tx: 0.15, ty: -0.62, hw: 2.80, hh: 2.12 };
+    if (instant) {
+      cam.az = to.az; cam.el = to.el; cam.tx = to.tx; cam.ty = to.ty;
+      cam.hw = to.hw; cam.hh = to.hh;
+    } else {
+      cam.hw = to.hw; cam.hh = to.hh;
+      camLerp = { from: from, to: to, t0: performance.now(), dur: 800 };
+    }
+
+    /* 标签重建 */
+    labelsEl.innerHTML = '';
+    leadersPath.setAttribute('d', '');
+    leadersCircles.innerHTML = '';
+    demo.labelEls = []; demo.labelPts = [];
+    demo.labels.forEach(function (L) {
+      var el = document.createElement('div');
+      el.className = 'label'; el.textContent = L.text;
+      labelsEl.appendChild(el);
+      demo.labelEls.push(el);
+      var c = document.createElementNS(svgNS, 'circle');
+      c.setAttribute('r', '2.5'); leadersCircles.appendChild(c);
+    });
+
+    /* 淡入切换 */
+    var fade = document.getElementById('fade');
+    fade.style.background = (id === 'usp') ? '#c4c9d0' : '#10141a';
+    fade.style.opacity = '1';
+    fade.style.transition = 'opacity .45s ease';
+    requestAnimationFrame(function () { fade.style.opacity = '0'; });
+    applyCam();
+  }
+
+  function phaseAt(t) {
+    var ph = demo.phases, cur = ph[0][1];
+    for (var i = 0; i < ph.length; i++) {
+      if (t >= ph[i][0]) cur = ph[i][1]; else break;
+    }
+    return cur;
+  }
+
+  /* ---------- 覆盖层（标签 + 尺寸线） ---------- */
+  function updateOverlay() {
+    var cw = stage.clientWidth, ch = stage.clientHeight;
+    demo.root.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+
+    var path = '';
+    var circ = demo.labelEls.map(function (el, i) {
+      var L = demo.labels[i];
+      var w;
+      if (L.obj) { tmpC.copy(L.local); demo.parts[L.obj].localToWorld(tmpC); w = tmpC; }
+      else w = L.world;
+      tmpA.copy(w).project(camera);
+      if (tmpA.z > 1 || tmpA.x < -1.3 || tmpA.x > 1.3 || tmpA.y < -1.3 || tmpA.y > 1.3) {
+        el.style.display = 'none';
+        demo.labelPts[i] = null;
+        return '';
+      }
+      var px = (tmpA.x * 0.5 + 0.5) * cw;
+      var py = (-tmpA.y * 0.5 + 0.5) * ch;
+      var lx = px + L.dx, ly = py + L.dy;
+      el.style.display = 'block';
+      el.style.left = lx + 'px';
+      el.style.top = ly + 'px';
+      demo.labelPts[i] = { ax: px, ay: py, bx: lx, by: ly };
+      return '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="2.5"/>';
+    }).join('');
+    var d = '';
+    demo.labelPts.forEach(function (p) {
+      if (p) d += 'M' + p.ax.toFixed(1) + ',' + p.ay.toFixed(1) + ' L' + p.bx.toFixed(1) + ',' + p.by.toFixed(1) + ' ';
+    });
+    leadersPath.setAttribute('d', d);
+    leadersCircles.innerHTML = circ;
+
+    /* CAD 尺寸线 */
+    var dim = demo.dim(lastT, lastF);
+    tmpA.copy(dim.a).project(camera);
+    tmpB.copy(dim.b).project(camera);
+    var x1 = (tmpA.x * 0.5 + 0.5) * cw, y1 = (-tmpA.y * 0.5 + 0.5) * ch;
+    var x2 = (tmpB.x * 0.5 + 0.5) * cw, y2 = (-tmpB.y * 0.5 + 0.5) * ch;
+    var dx = x2 - x1, dy = y2 - y1;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = -dy / len * 5, uy = dx / len * 5;
+    var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    var dimg = document.getElementById('dimg');
+    if (!dimg) {
+      dimg = document.createElementNS(svgNS, 'g');
+      dimg.id = 'dimg';
+      document.getElementById('lg').appendChild(dimg);
+    }
+    dimg.innerHTML =
+      '<path d="M' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' L' + x2.toFixed(1) + ',' + y2.toFixed(1) +
+      ' M' + (x1 - ux).toFixed(1) + ',' + (y1 - uy).toFixed(1) + ' L' + (x1 + ux).toFixed(1) + ',' + (y1 + uy).toFixed(1) +
+      ' M' + (x2 - ux).toFixed(1) + ',' + (y2 - uy).toFixed(1) + ' L' + (x2 + ux).toFixed(1) + ',' + (y2 + uy).toFixed(1) + '"/>' +
+      '<text x="' + mx.toFixed(1) + '" y="' + (my + 16).toFixed(1) + '" text-anchor="middle">' + dim.text + '</text>';
+  }
+
+  /* ---------- UI ---------- */
+  var lastT = 0, lastF = {};
+
+  function wireUI() {
+    document.getElementById('tabUsp').addEventListener('click', function () { switchDemo('usp'); });
+    document.getElementById('tabAr').addEventListener('click', function () { switchDemo('ar'); });
+    document.getElementById('btnPlay').addEventListener('click', function () { playing = true; syncPlayBtns(); });
+    document.getElementById('btnPause').addEventListener('click', function () { playing = false; syncPlayBtns(); });
+    document.getElementById('btnAsm').addEventListener('click', function () {
+      demoT[demoKey()] = 0.03; playing = false; syncPlayBtns();
+    });
+    document.getElementById('btnExp').addEventListener('click', function () {
+      demoT[demoKey()] = demo.tExploded; playing = false; syncPlayBtns();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.spd'), function (b) {
+      b.addEventListener('click', function () {
+        speed = parseFloat(b.getAttribute('data-v'));
+        Array.prototype.forEach.call(document.querySelectorAll('.spd'), function (x) {
+          x.classList.toggle('on', x === b);
+        });
+      });
+    });
+    var scrub = document.getElementById('scrub');
+    scrub.addEventListener('input', function () {
+      demoT[demoKey()] = parseFloat(scrub.value) / 1000 * demo.total;
+    });
+    scrub.addEventListener('pointerdown', function () { scrubDragging = true; });
+    window.addEventListener('pointerup', function () { scrubDragging = false; });
+
+    window.addEventListener('keydown', function (e) {
+      if (e.code === 'Space') { e.preventDefault(); playing = !playing; syncPlayBtns(); }
+      else if (e.key === '1') switchDemo('usp');
+      else if (e.key === '2') switchDemo('ar');
+    });
+
+    /* 相机交互 */
+    var dragging = false, lx = 0, ly = 0;
+    stage.addEventListener('pointerdown', function (e) {
+      dragging = true; lx = e.clientX; ly = e.clientY;
+    });
+    window.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      cam.az -= (e.clientX - lx) * 0.0055;
+      cam.el = Math.max(-0.15, Math.min(1.35, cam.el + (e.clientY - ly) * 0.0055));
+      lx = e.clientX; ly = e.clientY;
+    });
+    window.addEventListener('pointerup', function () { dragging = false; });
+    stage.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      cam.zoom = Math.max(0.5, Math.min(3.2, cam.zoom * Math.exp(-e.deltaY * 0.001)));
+    }, { passive: false });
+    stage.addEventListener('dblclick', function () {
+      cam.az = demoKey() === 'usp' ? -0.34 : -0.30;
+      cam.el = demoKey() === 'usp' ? 0.16 : 0.15;
+      cam.tx = demoKey() === 'usp' ? 1.34 : 0.15;
+      cam.ty = demoKey() === 'usp' ? -1.15 : -0.62;
+      cam.zoom = 1;
+    });
+  }
+
+  function demoKey() { return demo === demos.usp ? 'usp' : 'ar'; }
+  function syncPlayBtns() {
+    document.getElementById('btnPlay').classList.toggle('on', playing);
+    document.getElementById('btnPause').classList.toggle('on', !playing);
+  }
+
+  /* ---------- 主循环 ---------- */
+  function loop() {
+    requestAnimationFrame(loop);
+    var dt = Math.min(0.05, clock.getDelta());
+    var key = demoKey();
+    var t = demoT[key];
+    if (playing && !scrubDragging) {
+      t += dt * speed / demo.total;
+      if (t >= 1) t -= Math.floor(t);
+      demoT[key] = t;
+    }
+    lastT = t;
+    lastF = demo.update(t);
+
+    if (camLerp) {
+      var k = smooth((performance.now() - camLerp.t0) / camLerp.dur);
+      cam.az = lerp(camLerp.from.az, camLerp.to.az, k);
+      cam.el = lerp(camLerp.from.el, camLerp.to.el, k);
+      cam.tx = lerp(camLerp.from.tx, camLerp.to.tx, k);
+      cam.ty = lerp(camLerp.from.ty, camLerp.to.ty, k);
+      if (k >= 1) camLerp = null;
+    }
+    applyCam();
+    updateOverlay();
+
+    document.getElementById('phase').textContent = phaseAt(t);
+    document.getElementById('ro').innerHTML = demo.readout(t, lastF);
+    document.getElementById('scrub').value = Math.round(t / demo.total * 1000);
+    document.getElementById('tl').textContent = (t * demo.total).toFixed(1) + 's';
+    document.getElementById('stats').innerHTML =
+      'TRIS <b>' + demo.tris + '</b> · 部件 <b>' + demo.partCount + '</b> · FPS <b>' + fps + '</b>';
+
+    fpsN++; fpsAcc += dt;
+    if (fpsAcc >= 0.5) { fps = Math.round(fpsN / fpsAcc); fpsN = 0; fpsAcc = 0; }
+
+    renderer.render(scene, camera);
+  }
+
+  syncPlayBtns();
+  loadCDN(0);
+})();
+</script>
+</body>
+</html>

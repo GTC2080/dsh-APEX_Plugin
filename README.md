@@ -197,6 +197,12 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 返工次数、输入/输出 token、延迟和错误。比较 B/C 可以单独判断 APEX 策略的净影响；比较
 A/B 可以判断工具锚定的影响；D 是完整 Standard 对照。不要以单次成功宣称普遍提升。
 
+### 已发布的 pilot
+
+- [2026-08-16 USP Match 四模式真实模型对比](https://github.com/GTC2080/dsh-APEX_Plugin/tree/main/benchmarks/2026-08-16-usp-match)：
+  APEX v0.3、Minimal Max v0.2、官方 Minimal 与官方 Standard 的同题单样本测试，包含原始
+  提示词、结构化指标、浏览器验收、最终产物和截图。该记录为 `n=1`，不代表稳定排序。
+
 ## 已知边界
 
 - v0.3 的“路由”是晋级后的按需能力路由，不是完整任务模式分类器。
