@@ -6,8 +6,13 @@ import {
   apply as applyApexV041,
   UNLOCKABLE_TOOL_NAMES,
 } from '../presets/apex-v041/dev-tool-search.mjs'
+import {
+  apply as applyApexV05,
+  UNLOCKABLE_TOOL_NAMES as V05_UNLOCKABLE_TOOL_NAMES,
+} from '../presets/apex-v05/dev-tool-search.mjs'
 import { BASE_WEB_SEARCH_CALLS } from '../presets/apex-v041/execution-guard.mjs'
 import { UNLOCK_META_KIND } from '../presets/apex-v041/tool-gate.mjs'
+import { UNLOCK_META_KIND as V05_UNLOCK_META_KIND } from '../presets/apex-v05/tool-gate.mjs'
 
 function registeredTool() {
   let definition
@@ -220,4 +225,52 @@ test('APEX v0.4.1 ignores malformed imported discovery metadata', async () => {
   )
   assert.deepEqual(value.unlockedTools, [])
   assert.match(value.text, /Search before unlocking/)
+})
+
+function registeredV05Tool(events = []) {
+  let definition
+  const agent = apexAgent(events)
+  const schemas = [
+    { name: 'apex_research', description: 'Delegate focused web research to V4 Flash' },
+    { name: 'bash', description: 'Run a shell command' },
+    { name: 'web_search', description: 'Search the internet for current information' },
+  ]
+  applyApexV05({
+    tools: {
+      register(value) {
+        definition = value
+        return () => {}
+      },
+      schemas(scope) {
+        assert.equal(scope, agent)
+        return schemas
+      },
+    },
+  })
+  assert.notEqual(definition, undefined)
+  return { agent, tool: definition }
+}
+
+test('APEX v0.5 discovers and leases only its dedicated research tool', async () => {
+  assert.equal(V05_UNLOCKABLE_TOOL_NAMES.includes('apex_research'), true)
+  const first = registeredV05Tool()
+  const found = await first.tool.execute({ query: 'focused Flash research' }, { agent: first.agent })
+  assert.deepEqual(found.matchedTools, ['apex_research'])
+
+  const discovered = registeredV05Tool([{
+    type: 'tool/result',
+    data: {
+      meta: {
+        kind: V05_UNLOCK_META_KIND,
+        matchedTools: ['apex_research'],
+        unlockedTools: [],
+        approvedWebQueries: [],
+      },
+    },
+  }])
+  const leased = await discovered.tool.execute(
+    { toolNames: ['apex_research'] },
+    { agent: discovered.agent },
+  )
+  assert.deepEqual(leased.unlockedTools, ['apex_research'])
 })

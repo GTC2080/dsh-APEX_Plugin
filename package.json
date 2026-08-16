@@ -1,7 +1,7 @@
 {
   "name": "dsh-minimal-max",
-  "version": "0.4.1",
-  "description": "APEX presets for DeepSeek Harness with a Minimal anchor, adaptive research leases, and on-demand Standard tools",
+  "version": "0.5.0",
+  "description": "APEX presets for DeepSeek Harness with a Minimal anchor, durable task state, and focused V4 Flash research",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -14,6 +14,7 @@
     "presets/apex-v03",
     "presets/apex-v04",
     "presets/apex-v041",
+    "presets/apex-v05",
     "README.md",
     "LICENSE",
     "NOTICE"
@@ -27,7 +28,7 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node --check index.js && node --check presets/v2/tool-gate.mjs && node --check presets/v2/dev-tool-search.mjs && node --check presets/v2/windows-bash.mjs && node --check presets/apex-v03/tool-gate.mjs && node --check presets/apex-v03/dev-tool-search.mjs && node --check presets/apex-v03/windows-bash.mjs && node --check presets/apex-v03/apex-policy.mjs && node --check presets/apex-v04/tool-gate.mjs && node --check presets/apex-v04/dev-tool-search.mjs && node --check presets/apex-v04/windows-bash.mjs && node --check presets/apex-v04/apex-policy.mjs && node --check presets/apex-v04/execution-guard.mjs && node --check presets/apex-v041/tool-gate.mjs && node --check presets/apex-v041/dev-tool-search.mjs && node --check presets/apex-v041/windows-bash.mjs && node --check presets/apex-v041/apex-policy.mjs && node --check presets/apex-v041/execution-guard.mjs && node --test",
+    "check": "node --check index.js && node --check presets/v2/tool-gate.mjs && node --check presets/v2/dev-tool-search.mjs && node --check presets/v2/windows-bash.mjs && node --check presets/apex-v03/tool-gate.mjs && node --check presets/apex-v03/dev-tool-search.mjs && node --check presets/apex-v03/windows-bash.mjs && node --check presets/apex-v03/apex-policy.mjs && node --check presets/apex-v04/tool-gate.mjs && node --check presets/apex-v04/dev-tool-search.mjs && node --check presets/apex-v04/windows-bash.mjs && node --check presets/apex-v04/apex-policy.mjs && node --check presets/apex-v04/execution-guard.mjs && node --check presets/apex-v041/tool-gate.mjs && node --check presets/apex-v041/dev-tool-search.mjs && node --check presets/apex-v041/windows-bash.mjs && node --check presets/apex-v041/apex-policy.mjs && node --check presets/apex-v041/execution-guard.mjs && node --check presets/apex-v05/tool-gate.mjs && node --check presets/apex-v05/dev-tool-search.mjs && node --check presets/apex-v05/windows-bash.mjs && node --check presets/apex-v05/apex-policy.mjs && node --check presets/apex-v05/execution-guard.mjs && node --test",
     "test": "node --test"
   },
   "keywords": [

@@ -18,6 +18,7 @@ export const PRESET_ID = 'minimal-max-v2'
 export const APEX_PRESET_ID = 'apex-v03'
 export const APEX_V04_PRESET_ID = 'apex-v04'
 export const APEX_V041_PRESET_ID = 'apex-v041'
+export const APEX_V05_PRESET_ID = 'apex-v05'
 
 const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32'])
 const PRESET_DIRECTORIES = Object.freeze({
@@ -25,6 +26,7 @@ const PRESET_DIRECTORIES = Object.freeze({
   [APEX_PRESET_ID]: 'apex-v03',
   [APEX_V04_PRESET_ID]: 'apex-v04',
   [APEX_V041_PRESET_ID]: 'apex-v041',
+  [APEX_V05_PRESET_ID]: 'apex-v05',
 })
 export const PRESET_IDS = Object.freeze(Object.keys(PRESET_DIRECTORIES))
 

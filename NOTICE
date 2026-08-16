@@ -43,14 +43,21 @@ The first-request anchoring hypothesis and evaluation design were informed by:
   commit 04255b55f16c4439e538239fb9783070c4165081
 
 The decision to keep mode classification and extra model calls outside the
-v0.3/v0.4 anchor was informed by:
+v0.3-v0.5 anchor, and the v0.5 Pro/Flash role split, were informed by:
 
   https://github.com/yjh051108/dsh-routing-suite
   commit a09eb0ade28e6ec3b8e5eb22985a14f6bfa1fbe5
 
-These two repositories are cited as research and design references; APEX v0.3/v0.4
-does not copy their evaluation text, keyword classifier, injector, or router
-implementation.
+The v0.5 bounded Goal/Verified/Open/Next/Evidence state and stall-recovery
+design were informed by:
+
+  https://github.com/Tiger3807861189/J-Space-Cognition-Suite-V3.6
+  commit 46bac14a86398b406c6c6d07baf1fef9cfc8d370
+
+These repositories are cited as research and design references. APEX does not
+copy their evaluation text, file controller, keyword classifier, injector,
+router, or prompt modules. v0.5 implements the ideas independently through
+DeepSeek Harness session events and the official subagent tool/provider APIs.
 
 DeepSeek and DeepSeek Harness are names of their respective owner. This
 community project is not affiliated with or endorsed by DeepSeek.

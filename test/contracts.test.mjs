@@ -14,6 +14,7 @@ const v2Composition = join(projectRoot, 'presets', 'v2', 'agent.cordis.yml')
 const apexComposition = join(projectRoot, 'presets', 'apex-v03', 'agent.cordis.yml')
 const apexV04Composition = join(projectRoot, 'presets', 'apex-v04', 'agent.cordis.yml')
 const apexV041Composition = join(projectRoot, 'presets', 'apex-v041', 'agent.cordis.yml')
+const apexV05Composition = join(projectRoot, 'presets', 'apex-v05', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
@@ -49,13 +50,14 @@ async function missingStandardPackages(composition) {
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.4.1')
+  assert.equal(manifest.version, '0.5.0')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
   assert.equal(manifest.dependencies, undefined)
   assert.equal(manifest.files.includes('presets/apex-v04'), true)
   assert.equal(manifest.files.includes('presets/apex-v041'), true)
+  assert.equal(manifest.files.includes('presets/apex-v05'), true)
   assert.match(
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
@@ -98,6 +100,22 @@ test('APEX v0.4.1 preserves the Minimal anchor and composes the hard research gu
   assert.match(content, /name: \.\/apex-policy\.mjs/)
   assert.match(content, /name: \.\/windows-bash\.mjs/)
   assert.match(content, /name: '@deepseek-ai\/dsh-tool-str-replace-editor'/)
+})
+
+test('APEX v0.5 preserves Minimal and configures one bounded V4 Flash researcher', async () => {
+  const content = await readFile(apexV05Composition, 'utf8')
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/execution-guard\.mjs/)
+  assert.match(content, /name: \.\/dev-tool-search\.mjs/)
+  assert.match(content, /name: \.\/apex-policy\.mjs/)
+  assert.match(content, /toolName: apex_research/)
+  assert.match(content, /agentOptions:\n\s+model: deepseek-v4-flash/)
+  assert.match(content, /toolFilter:\n\s+allow:\n\s+- web_search/)
+  assert.match(content, /maxDepth: 1/)
+  assert.match(content, /enableRunInBackground: false/)
 })
 
 test('pins the POSIX first-request composition to the reviewed Minimal baseline', async () => {
@@ -174,6 +192,22 @@ test('APEX v0.4 tree remains byte-identical to the tested baseline', async () =>
   }
 })
 
+test('APEX v0.4.1 tree remains byte-identical to the tested baseline', async () => {
+  const expected = {
+    'agent.cordis.yml': 'f68a5ec77d101c7ff73b93df8594264974975d599a28180316421242368fd858',
+    'apex-policy.mjs': 'a4262857fa28b97face365b3ee740b7d31c1aaa50d20ac54f28babd34db160ae',
+    'dev-tool-search.mjs': '8638b3e6c61ada7b3bcb9d13469222784a8dbf900539614d98d82f8d1b435ab9',
+    'execution-guard.mjs': '37e784d38aff3ac7a1912efdf1d6a71a48479a6ad12771d0a08581de98ac6c9a',
+    'preset.yml': '2c5e026c414cb2b8e053d47ad9f5c4207f9b7b71c8c67d9dd875a2e127e0d06e',
+    'tool-gate.mjs': 'd85d0813f082184d37e4496f2fbd9263dfc32ac9cd304a66288c355b4b16a2da',
+    'windows-bash.mjs': '55323a7fd5574572a9486f2fdd34285f347c2412cfff9cf4c6d49b0f43a92c36',
+  }
+  for (const [file, digest] of Object.entries(expected)) {
+    const content = await readFile(join(projectRoot, 'presets', 'apex-v041', file))
+    assert.equal(createHash('sha256').update(content).digest('hex'), digest, file)
+  }
+})
+
 test('APEX v0.4 reuses the released Windows fallback', async () => {
   assert.equal(
     await readFile(join(projectRoot, 'presets', 'apex-v04', 'windows-bash.mjs'), 'utf8'),
@@ -185,6 +219,13 @@ test('APEX v0.4.1 reuses the released Windows fallback', async () => {
   assert.equal(
     await readFile(join(projectRoot, 'presets', 'apex-v041', 'windows-bash.mjs'), 'utf8'),
     await readFile(join(projectRoot, 'presets', 'apex-v04', 'windows-bash.mjs'), 'utf8'),
+  )
+})
+
+test('APEX v0.5 reuses the released Windows fallback', async () => {
+  assert.equal(
+    await readFile(join(projectRoot, 'presets', 'apex-v05', 'windows-bash.mjs'), 'utf8'),
+    await readFile(join(projectRoot, 'presets', 'apex-v041', 'windows-bash.mjs'), 'utf8'),
   )
 })
 
@@ -217,6 +258,14 @@ test(
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV041Composition), [])
+  },
+)
+
+test(
+  'APEX v0.5 carries every current Standard package row before request-time filtering',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    assert.deepEqual(await missingStandardPackages(apexV05Composition), [])
   },
 )
 
