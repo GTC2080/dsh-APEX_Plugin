@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>USP Match // Low-Poly Field Strip</title>
+<style>
+  :root{
+    --hud-bg: rgba(12,15,18,.88);
+    --hud-line: #89a7bf;
+    --hud-cyan: #58d6ff;
+    --hud-amber: #ffb347;
+    --hud-green: #59ff7c;
+    --hud-red: #ff4f5e;
+    --text: #dbe4ec;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ width:100%; height:100%; overflow:hidden; background:#15181c; }
+  body{
+    font-family:"Courier New", ui-monospace, Menlo, Consolas, monospace;
+    color:var(--text);
+    -webkit-user-select:none; user-select:none;
+  }
+  #scene{
+    position:fixed; inset:0;
+    width:100vw; height:100vh;
+    display:block;
+    image-rendering:pixelated;
+    image-rendering:crisp-edges;
+    z-index:0;
+  }
+  #hud{
+    position:fixed; inset:0; width:100vw; height:100vh;
+    z-index:2; pointer-events:none; display:block;
+  }
+  #scanlines{
+    position:fixed; inset:0; z-index:3; pointer-events:none;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0px, rgba(0,0,0,.14) 1px, transparent 1px, transparent 3px),
+      radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,.38) 100%);
+    mix-blend-mode:multiply;
+    opacity:.55;
+  }
+  #ui{
+    position:fixed; z-index:5;
+    left:14px; top:12px; right:14px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:12px; pointer-events:none;
+  }
+  .panel{
+    background:var(--hud-bg);
+    border:2px solid var(--hud-line);
+    box-shadow:4px 4px 0 rgba(0,0,0,.45);
+    padding:9px 11px;
+    pointer-events:auto;
+  }
+  #brand .en{
+    font-size:20px; font-weight:bold; letter-spacing:2px; color:#fff;
+    text-shadow:2px 2px 0 #000;
+  }
+  #brand .en b{ color:var(--hud-cyan); }
+  #brand .sub{
+    display:block; margin-top:3px; font-size:10px; letter-spacing:2px;
+    color:var(--hud-line);
+  }
+  #modeTabs{ display:flex; gap:8px; }
+  button{
+    font-family:inherit; font-size:11px; letter-spacing:1px; text-transform:uppercase;
+    color:var(--text); background:#171c22;
+    border:2px solid #4e6272; padding:7px 10px; cursor:pointer;
+    box-shadow:2px 2px 0 rgba(0,0,0,.5);
+  }
+  button:hover{ border-color:var(--hud-cyan); color:#fff; }
+  button.active{
+    background:#0d2f38; border-color:var(--hud-cyan); color:var(--hud-cyan);
+    box-shadow:inset 0 0 8px rgba(88,214,255,.25), 2px 2px 0 rgba(0,0,0,.5);
+  }
+  #status{
+    text-align:right; font-size:10px; line-height:1.7; letter-spacing:1px;
+  }
+  #status .mode{ color:var(--hud-amber); font-weight:bold; }
+  #status .ok{ color:var(--hud-green); }
+  #controls{
+    position:fixed; z-index:5; left:14px; right:14px; bottom:12px;
+    display:flex; align-items:center; gap:10px;
+    pointer-events:none;
+  }
+  #controls .panel{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    pointer-events:auto;
+  }
+  #scrub{
+    width:min(360px, 42vw); height:18px; cursor:pointer;
+    accent-color:var(--hud-cyan);
+  }
+  #phaseLabel{
+    min-width:170px; text-align:center; font-size:11px; letter-spacing:1px;
+    color:var(--hud-green); text-shadow:0 0 6px rgba(89,255,124,.45);
+  }
+  #hint{
+    position:fixed; z-index:5; right:14px; bottom:64px;
+    font-size:9px; letter-spacing:1px; color:#aeb7c0;
+    background:rgba(12,15,18,.72); border:1px solid #4e6272;
+    padding:5px 7px; pointer-events:none;
+  }
+  #err{
+    display:none; position:fixed; inset:0; z-index:20;
+    align-items:center; justify-content:center; text-align:center;
+    background:#101418; color:#ffb0b6; font-size:14px; padding:30px;
+  }
+  @media (max-width: 760px){
+    #ui{ flex-direction:column; align-items:stretch; }
+    #status{ text-align:left; }
+    #controls .panel{ width:100%; justify-content:space-between; }
+    #scrub{ width:100%; }
+    #hint{ display:none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<svg id="hud" xmlns="http://www.w3.org/2000/svg"></svg>
+<div id="scanlines"></div>
+
+<div id="ui">
+  <div id="brand" class="panel">
+    <span class="en">USP <b>MATCH</b> // LOW-POLY ARMORY</span>
+    <span class="sub">PROCEDURAL PS1 MESH · FLAT SHADE · 60FPS FIELD-STRIP LOOP</span>
+  </div>
+  <div id="modeTabs" class="panel">
+    <button id="modeUsp" class="active">USP Match</button>
+    <button id="modeAr">AR-15 CAD</button>
+  </div>
+  <div id="status" class="panel">
+    <div class="mode" id="modeText">MODE: USP MATCH FIELD STRIP</div>
+    <div>GEOMETRY: <span class="ok">PROCEDURAL</span> · SHADING: <span class="ok">FLAT</span></div>
+    <div id="fpsText">FRAME: -- FPS</div>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="panel">
+    <button id="playBtn" title="Space">PAUSE</button>
+    <input id="scrub" type="range" min="0" max="1000" value="0" title="Timeline">
+    <span id="phaseLabel">EXPLODED VIEW</span>
+    <button id="viewBtn">RESET VIEW</button>
+    <button id="labelsBtn">HUD ON</button>
+  </div>
+</div>
+<div id="hint">DRAG ORBIT · WHEEL ZOOM · SHIFT/右键 PAN · SPACE PAUSE · 1/2 MODE</div>
+<div id="err"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>window.THREE || document.write('<script src="https://unpkg.com/three@0.149.0/build/three.min.js"><\/script>');</script>
+<script>
+(function(){
+'use strict';
+
+var canvas = document.getElementById('scene');
+var errBox = document.getElementById('err');
+function fatal(msg){
+  errBox.style.display = 'flex';
+  errBox.textContent = 'RENDERER ERROR: ' + msg;
+}
+
+if (!window.THREE){
+  fatal('THREE.js failed to load from CDN. Check network / use a modern browser.');
+  return;
+}
+if (!window.WebGLRenderingContext){
+  fatal('WebGL is not available in this browser.');
+  return;
+}
+
+/* ============================================================
+   1. RETRO RENDERER / CAMERA / LIGHTS
+   ============================================================ */
+var renderer;
+try{
+  renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:false, powerPreference:'high-performance' });
+}catch(e){
+  fatal(e && e.message ? e.message : 'Could not create WebGL renderer');
+  return;
+}
+if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
+else if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9da1a8);
+scene.fog = new THREE.Fog(0x9da1a8, 58, 135);
+
+var camera = new THREE.OrthographicCamera(-16, 16, 9, -9, 0.1, 260);
+camera.position.set(14, 22, 48);
+
+var hemiLight = new THREE.HemisphereLight(0xf4f7ff, 0x5c616b, 1.05);
+scene.add(hemiLight);
+var keyLight = new THREE.DirectionalLight(0xffffff, 1.75);
+keyLight.position.set(20, 32, 26);
+scene.add(keyLight);
+var fillLight = new THREE.DirectionalLight(0xdce8ff, 0.55);
+fillLight.position.set(-24, 8, -16);
+scene.add(fillLight);
+var rimLight = new THREE.DirectionalLight(0xffffff, 1.05);
+rimLight.position.set(-10, 16, -30);
+scene.add(rimLight);
+var bounceLight = new THREE.DirectionalLight(0xbfd4ff, 0.35);
+bounceLight.position.set(0, -12, 18);
+scene.add(bounceLight);
+
+/* ============================================================
+   2. SMALL PROCEDURAL HELPERS
+   ============================================================ */
+function mulberry32(seed){
+  var a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function makePixelTexture(size, painter){
+  var cv = document.createElement('canvas');
+  cv.width = size; cv.height = size;
+  var ctx = cv.getContext('2d');
+  painter(ctx, size);
+  var tex = new THREE.CanvasTexture(cv);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  if (tex.colorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
+  else if (tex.encoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+function ditherTexture(seed, light, dark, grain, seams){
+  return makePixelTexture(64, function(ctx, s){
+    var rnd = mulberry32(seed);
+    ctx.fillStyle = light; ctx.fillRect(0,0,s,s);
+    var n = grain || 210;
+    for (var i=0;i<n;i++){
+      var x = (rnd()*s)|0, y = (rnd()*s)|0;
+      var v = rnd();
+      ctx.fillStyle = v < 0.5 ? dark : '#ffffff';
+      ctx.globalAlpha = 0.08 + v*0.12;
+      ctx.fillRect(x, y, (rnd()*3+1)|0, (rnd()*3+1)|0);
+    }
+    ctx.globalAlpha = 1;
+    if (seams){
+      ctx.fillStyle = dark;
+      for (var j=0;j<4;j++){
+        var sx = (((rnd()*s)|0)/8|0)*8;
+        var sy = (((rnd()*s)|0)/8|0)*8;
+        ctx.fillRect(sx, 0, 1, s);
+        ctx.fillRect(0, sy, s, 1);
+      }
+    }
+  });
+}
+
+function panelTexture(seed, base, dark, light, vertical){
+  return makePixelTexture(64, function(ctx, s){
+    var rnd = mulberry32(seed);
+    ctx.fillStyle = base; ctx.fillRect(0,0,s,s);
+    ctx.fillStyle = dark;
+    if (vertical){
+      for (var x=0;x<s;x+=4){ ctx.fillRect(x,0,1,s); }
+    }else{
+      for (var y=0;y<s;y+=4){ ctx.fillRect(0,y,s,1); }
+    }
+    ctx.fillStyle = light;
+    for (var i=0;i<160;i++){
+      var x=(rnd()*s)|0, y=(rnd()*s)|0;
+      ctx.globalAlpha = .05 + rnd()*.08;
+      ctx.fillRect(x,y,2,2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = dark;
+    ctx.fillRect(0,0,s,1); ctx.fillRect(0,s-1,s,1);
+    ctx.fillRect(0,0,1,s); ctx.fillRect(s-1,0,1,s);
+  });
+}
+
+function stdMaterial(cfg){
+  var m = new THREE.MeshStandardMaterial({
+    color: cfg.color,
+    metalness: cfg.metalness !== undefined ? cfg.metalness : .25,
+    roughness: cfg.roughness !== undefined ? cfg.roughness : .78,
+    flatShading: true
+  });
+  if (cfg.map) m.map = cfg.map;
+  if (cfg.emissive) m.emissive = new THREE.Color(cfg.emissive);
+  if (cfg.emissiveIntensity !== undefined) m.emissiveIntensity = cfg.emissiveIntensity;
+  if (cfg.transparent){ m.transparent = true; m.opacity = cfg.opacity || .5; }
+  if (cfg.side) m.side = cfg.side;
+  return m;
+}
+
+function put(parent, geometry, material, x, y, z, rx, ry, rz){
+  var mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.rotation.set(rx || 0, ry || 0, rz || 0);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  parent.add(mesh);
+  return mesh;
+}
+
+function box(parent, material, w, h, d, x, y, z, rx, ry, rz){
+  return put(parent, new THREE.BoxGeometry(w, h, d, 1, 1, 1), material, x, y, z, rx, ry, rz);
+}
+
+function cylY(parent, material, rTop, rBottom, h, seg, x, y, z){
+  return put(parent, new THREE.CylinderGeometry(rTop, rBottom, h, seg, 1, false), material, x, y, z, 0, 0, 0);
+}
+
+function cylZ(parent, material, rTop, rBottom, h, seg, x, y, z){
+  return put(parent, new THREE.CylinderGeometry(rTop, rBottom, h, seg, 1, false), material, x, y, z, Math.PI/2, 0, 0);
+}
+
+function cylX(parent, material, rTop, rBottom, h, seg, x, y, z){
+  return put(parent, new THREE.CylinderGeometry(rTop, rBottom, h, seg, 1, false), material, x, y, z, 0, 0, -Math.PI/2);
+}
+
+function openTubeX(parent, material, r, h, seg, x, y, z){
+  return put(parent, new THREE.CylinderGeometry(r, r, h, seg, 1, false, Math.PI/2, Math.PI), material, x, y, z, 0, 0, -Math.PI/2);
+}
+
+function torusZ(parent, material, radius, tube, radialSeg, tubularSeg, x, y, z){
+  return put(parent, new THREE.TorusGeometry(radius, tube, radialSeg, tubularSeg), material, x, y, z, 0, 0, 0);
+}
+
+function taperedBoxGeometry(wTop, wBottom, h, d){
+  var hwT = wTop/2, hwB = wBottom/2, hh = h/2, hd = d/2;
+  var v = [
+    [-hwB,-hh,-hd],[ hwB,-hh,-hd],[ hwB, hh,-hd],[-hwT, hh,-hd],
+    [-hwB,-hh, hd],[ hwB,-hh, hd],[ hwB, hh, hd],[-hwT, hh, hd]
+  ];
+  function tri(a,b,c){ return [].concat(v[a], v[b], v[c]); }
+  var arr = [].concat(
+    tri(0,2,1), tri(0,3,2),
+    tri(4,5,6), tri(4,6,7),
+    tri(0,1,5), tri(0,5,4),
+    tri(3,7,6), tri(3,6,2),
+    tri(2,6,5), tri(2,5,1),
+    tri(3,0,4), tri(3,4,7)
+  );
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/* ============================================================
+   3. USP MATCH — PROCEDURAL LOW-POLY PISTOL
+   ============================================================ */
+function buildUSP(){
+  var root = new THREE.Group();
+  root.name = 'USP_Match';
+
+  var polymerMap = ditherTexture(1123, '#c9cdd2', '#555a61', 240, true);
+  var slideMap = panelTexture(7731, '#dfe3e8', '#333841', '#f4f6fa', true);
+  var barrelMap = panelTexture(991, '#e9edf2', '#6b727c', '#ffffff', true);
+  var compMap = panelTexture(2201, '#d6dbe1', '#2c313a', '#eef2f7', true);
+
+  var matPolymer = stdMaterial({ color:0x1e2227, map:polymerMap, metalness:.12, roughness:.86 });
+  var matPolymerDark = stdMaterial({ color:0x14171b, map:polymerMap, metalness:.12, roughness:.9 });
+  var matSlide = stdMaterial({ color:0x303642, map:slideMap, metalness:.62, roughness:.48 });
+  var matSlideDark = stdMaterial({ color:0x20242c, map:slideMap, metalness:.6, roughness:.55 });
+  var matBarrel = stdMaterial({ color:0xd9dee6, map:barrelMap, metalness:.9, roughness:.3 });
+  var matSteel = stdMaterial({ color:0x777e88, metalness:.85, roughness:.42 });
+  var matComp = stdMaterial({ color:0x2b313b, map:compMap, metalness:.6, roughness:.5 });
+  var matGreen = new THREE.MeshBasicMaterial({ color:0x39ff5e });
+  var matRed = new THREE.MeshBasicMaterial({ color:0xff3344 });
+  matGreen.toneMapped = false;
+  matRed.toneMapped = false;
+  var matPin = stdMaterial({ color:0x8a8272, metalness:.75, roughness:.5 });
+
+  /* ---- polymer lower frame ---- */
+  var frame = new THREE.Group();
+  frame.name = 'usp_frame';
+  root.add(frame);
+
+  box(frame, matPolymer, 2.85, 2.25, 13.6, 0, 0.05, 0.2);
+  box(frame, matPolymerDark, 2.65, 0.5, 7.4, 0, -1.18, 3.2);
+  box(frame, matPolymerDark, 2.45, 0.24, 1.6, 0, -1.42, 5.6);
+  box(frame, matPolymerDark, 2.45, 0.24, 1.6, 0, -1.42, 7.6);
+  box(frame, matPolymerDark, 2.35, 0.22, 1.3, 0, -1.62, 3.1);
+  box(frame, matPolymer, 2.35, 0.4, 2.4, 0, -1.75, -2.2);
+
+  var grip = new THREE.Group();
+  grip.position.set(0, -2.1, -0.85);
+  grip.rotation.x = -0.09;
+  box(grip, matPolymerDark, 2.4, 7.1, 3.2, 0, -3.5, 0);
+  box(grip, matPolymer, 2.15, 6.7, 2.85, 0, -3.55, 0);
+  box(grip, matPolymerDark, 2.55, 0.75, 3.5, 0, -7.45, 0);
+  frame.add(grip);
+
+  torusZ(frame, matPolymer, 1.3, 0.12, 6, 9, 0, -1.55, 3.75);
+  put(frame, taperedBoxGeometry(.34,.42,1.55,.5), matSteel, 0, -1.4, 4.25, -0.16, 0, 0);
+  box(frame, matSteel, 0.95, 1.15, 0.75, 0, 1.65, -6.4, -0.12, 0, 0);
+  box(frame, matPolymerDark, 0.85, 0.55, 0.8, 0, 1.75, -7.15);
+  box(frame, matSteel, 0.25, 0.5, 2.6, -1.46, 0.32, -1.2);
+  box(frame, matSteel, 0.3, 0.32, 0.75, -1.48, -1.0, -1.9);
+  box(frame, matPolymerDark, 0.35, 0.5, 1.1, 1.44, 0.28, -2.5);
+  cylX(frame, matSteel, 0.16, 0.16, 1.6, 6, 0, 1.15, -6.35);
+
+  /* ---- exposed bright barrel + chamber ---- */
+  var barrel = new THREE.Group();
+  barrel.name = 'usp_barrel';
+  root.add(barrel);
+
+  box(barrel, matBarrel, 2.0, 1.55, 3.2, 0, 1.45, -3.7);
+  box(barrel, matSteel, 2.2, 0.5, 1.1, 0, 2.35, -3.6);
+  cylZ(barrel, matBarrel, 0.5, 0.5, 17.4, 8, 0, 1.45, 4.8);
+  cylZ(barrel, matSteel, 0.61, 0.61, 0.75, 8, 0, 1.45, 13.95);
+  box(barrel, matSteel, 1.5, 0.5, 0.9, 0, 1.05, -1.2);
+  box(barrel, matSteel, 1.5, 0.5, 0.9, 0, 1.05, -3.9);
+
+  /* ---- slide assembly (rear red sight) ---- */
+  var slide = new THREE.Group();
+  slide.name = 'usp_slide';
+  root.add(slide);
+
+  box(slide, matSlide, 0.58, 3.4, 21.6, -1.3, 2.0, 0.15);
+  box(slide, matSlide, 0.58, 3.4, 21.6, 1.3, 2.0, 0.15);
+  box(slide, matSlideDark, 3.15, 0.5, 9.3, 0, 3.8, -6.0);
+  box(slide, matSlideDark, 3.15, 0.5, 6.1, 0, 3.8, 7.7);
+  box(slide, matSlide, 1.05, 0.3, 15.4, 0, 4.02, 0.1);
+  box(slide, matSlideDark, 2.9, 0.5, 0.55, 0, 3.55, 10.95);
+  box(slide, matSlideDark, 2.9, 0.5, 0.55, 0, 0.55, 10.95);
+  box(slide, matSlideDark, 0.5, 2.3, 0.55, -1.45, 2.25, 10.95);
+  box(slide, matSlideDark, 0.5, 2.3, 0.55, 1.45, 2.25, 10.95);
+  box(slide, matSlideDark, 3.1, 2.5, 0.6, 0, 1.9, -10.95);
+
+  var sx, serZ;
+  for (var si=0; si<6; si++){
+    sx = -1.55; serZ = -10.3 + si*0.62;
+    box(slide, matSlideDark, 0.12, 0.8, 0.5, sx, 2.15, serZ);
+    box(slide, matSlideDark, 0.12, 0.8, 0.5, -sx, 2.15, serZ);
+  }
+
+  box(slide, matSlideDark, 1.7, 0.6, 0.85, 0, 4.0, -8.35);
+  box(slide, matSlideDark, 0.28, 0.72, 0.6, -0.88, 4.42, -8.35);
+  box(slide, matSlideDark, 0.28, 0.72, 0.6, 0.88, 4.42, -8.35);
+  cylZ(slide, matRed, 0.09, 0.09, 1.6, 6, 0, 4.68, -8.35);
+  box(slide, matSlideDark, 0.5, 0.45, 2.2, 1.45, 1.55, 3.6);
+  box(slide, matSlideDark, 0.18, 0.5, 1.4, 1.62, 1.1, -4.2);
+
+  /* ---- front Match compensator / barrel weight + green fiber sight ---- */
+  var comp = new THREE.Group();
+  comp.name = 'usp_comp';
+  root.add(comp);
+
+  box(comp, matComp, 0.55, 3.3, 3.4, -1.7, 1.65, 12.35);
+  box(comp, matComp, 0.55, 3.3, 3.4, 1.7, 1.65, 12.35);
+  box(comp, matComp, 3.9, 0.55, 3.4, 0, 3.35, 12.35);
+  box(comp, matComp, 3.9, 0.55, 3.4, 0, -0.1, 12.35);
+  box(comp, matSlideDark, 3.6, 0.9, 0.5, 0, 3.55, 14.05);
+  box(comp, matSlideDark, 3.6, 0.9, 0.5, 0, -0.1, 14.05);
+  box(comp, matSlideDark, 0.6, 2.9, 0.5, -1.7, 1.75, 14.05);
+  box(comp, matSlideDark, 0.6, 2.9, 0.5, 1.7, 1.75, 14.05);
+  box(comp, matComp, 1.25, 0.8, 0.85, 0, 4.05, 12.0);
+  cylZ(comp, matGreen, 0.11, 0.11, 1.55, 6, 0, 4.6, 12.0);
+  box(comp, matSlideDark, 0.5, 0.35, 1.8, 0, -0.35, 12.35);
+
+  /* ---- magazine ---- */
+  var mag = new THREE.Group();
+  mag.name = 'usp_mag';
+  root.add(mag);
+
+  box(mag, matPolymerDark, 2.25, 7.8, 3.0, 0, -5.4, -0.6);
+  box(mag, matPolymer, 2.0, 7.2, 2.7, 0, -5.45, -0.6);
+  box(mag, matPolymerDark, 2.6, 0.75, 3.35, 0, -9.55, -0.6);
+  box(mag, matSteel, 1.9, 0.3, 2.5, 0, -1.65, -0.6);
+  for (var wi=0; wi<4; wi++){
+    box(mag, matSteel, 0.12, 0.55, 0.5, 1.08, -4.6 + wi*1.05, -0.55);
+  }
+
+  var frontSightAnchor = new THREE.Object3D();
+  frontSightAnchor.position.set(0, 4.6, 12.0);
+  comp.add(frontSightAnchor);
+  var rearSightAnchor = new THREE.Object3D();
+  rearSightAnchor.position.set(0, 4.68, -8.35);
+  slide.add(rearSightAnchor);
+
+  return {
+    root: root,
+    frame: frame,
+    barrel: barrel,
+    slide: slide,
+    comp: comp,
+    mag: mag,
+    anchors: {
+      slide:      { parent:slide, pos:new THREE.Vector3(0, 2.0, 0.2) },
+      barrel:     { parent:barrel, pos:new THREE.Vector3(0, 1.45, 4.8) },
+      frame:      { parent:frame, pos:new THREE.Vector3(0, 0.1, 0.2) },
+      comp:       { parent:comp, pos:new THREE.Vector3(0, 1.65, 12.35) },
+      mag:        { parent:mag, pos:new THREE.Vector3(0, -5.4, -0.6) },
+      greenSight: { parent:comp, pos:new THREE.Vector3(0, 4.6, 12.0) },
+      redSight:   { parent:slide, pos:new THREE.Vector3(0, 4.68, -8.35) }
+    }
+  };
+}
+
+/* ============================================================
+   4. AR-15 — OPTIONAL MECHANICAL FIELD-STRIP DEMO
+   ============================================================ */
+function buildAR15(){
+  var root = new THREE.Group();
+  root.name = 'AR15_FieldStrip';
+
+  var anodMap = ditherTexture(4401, '#c6cad0', '#343840', 230, true);
+  var steelMap = panelTexture(5517, '#d3d7dd', '#3b414a', '#eef1f5', true);
+  var polyMap = ditherTexture(811, '#b9bdc3', '#33363c', 260, true);
+
+  var matUpper = stdMaterial({ color:0x1a1d22, map:anodMap, metalness:.42, roughness:.62 });
+  var matLower = stdMaterial({ color:0x17191e, map:anodMap, metalness:.4, roughness:.66 });
+  var matPolymer = stdMaterial({ color:0x20242a, map:polyMap, metalness:.15, roughness:.88 });
+  var matSteel = stdMaterial({ color:0x303640, map:steelMap, metalness:.8, roughness:.42 });
+  var matBarrel = stdMaterial({ color:0x24282f, map:steelMap, metalness:.82, roughness:.38 });
+  var matBcg = stdMaterial({ color:0x3b414a, map:steelMap, metalness:.78, roughness:.45 });
+  var matBolt = stdMaterial({ color:0x4a515b, map:steelMap, metalness:.85, roughness:.36 });
+  var matSpring = stdMaterial({ color:0xb9742e, metalness:.55, roughness:.55, emissive:0x241004, emissiveIntensity:.45 });
+  var matPin = stdMaterial({ color:0x9c8a5f, metalness:.8, roughness:.42 });
+  var matAccent = stdMaterial({ color:0x8f3038, metalness:.4, roughness:.6 });
+
+  /* ---- lower receiver, fire control, buffer system ---- */
+  var lower = new THREE.Group();
+  lower.name = 'ar_lower';
+  root.add(lower);
+
+  box(lower, matLower, 8.4, 2.3, 2.7, 0.1, -1.55, 0);
+  box(lower, matLower, 1.5, 1.35, 2.35, 0, -0.85, 0);
+  box(lower, matLower, 1.7, 1.25, 2.3, -3.45, -0.85, 0);
+  box(lower, matPolymer, 3.0, 4.3, 2.2, 1.55, -2.5, 0);
+  box(lower, matSteel, 0.9, 0.55, 1.7, 1.4, 1.45, 0);
+
+  torusZ(lower, matLower, 1.12, 0.12, 6, 9, 3.95, -3.1, 0);
+  put(lower, taperedBoxGeometry(.34,.46,1.7,.55), matSteel, 4.05, -2.8, 0, 0, 0, 0.14);
+  box(lower, matSteel, 0.5, 0.5, 0.55, 2.45, 0.2, 1.42);
+  cylZ(lower, matSteel, 0.3, 0.3, 0.5, 7, 2.3, 0.3, -1.44);
+
+  var hammerGroup = new THREE.Group();
+  box(lower, matLower, 2.0, 1.5, 2.4, 2.45, 0.2, 0);
+  hammerGroup.position.set(2.25, 0.15, 0);
+  box(hammerGroup, matSteel, 0.75, 1.75, 1.1, 0, 0.65, 0, 0, 0, 0.16);
+  box(hammerGroup, matSteel, 0.85, 0.45, 1.15, 0, 1.45, 0, 0, 0, 0.16);
+  lower.add(hammerGroup);
+  box(lower, matAccent, 0.3, 0.85, 0.3, 2.02, 0.85, 0, 0, 0, 0.22);
+
+  var grip = new THREE.Group();
+  grip.position.set(0.2, -2.65, 0);
+  grip.rotation.z = 0.24;
+  box(grip, matPolymer, 2.2, 4.6, 3.4, 0, -1.8, 0);
+  lower.add(grip);
+
+  var bufferTube = new THREE.Group();
+  bufferTube.position.set(-8.8, 0.42, 0);
+  openTubeX(bufferTube, matLower, 0.82, 8.6, 10, 0, 0, 0);
+  cylX(bufferTube, matSteel, 0.88, 0.88, 0.35, 10, -4.3, 0, 0);
+  for (var ci=0; ci<9; ci++){
+    put(bufferTube, new THREE.TorusGeometry(0.52, 0.07, 5, 8), matSpring, -3.6 + ci*0.85, 0, 0, 0, Math.PI/2, 0);
+  }
+  cylX(bufferTube, matSteel, 0.62, 0.62, 2.1, 9, -3.4, 0, 0);
+  box(bufferTube, matPolymer, 2.4, 2.6, 2.2, -5.3, -0.95, 0, 0, 0, 0.12);
+  lower.add(bufferTube);
+
+  var rearPin = new THREE.Group();
+  rearPin.position.set(-3.45, -0.85, 0);
+  cylZ(rearPin, matPin, 0.22, 0.22, 3.0, 8, 0, 0, 0);
+  lower.add(rearPin);
+  cylZ(lower, matPin, 0.24, 0.24, 3.15, 8, 0, -0.85, 0);
+
+  var arMag = new THREE.Group();
+  arMag.position.set(1.55, -2.35, 0);
+  box(arMag, matSteel, 1.95, 6.1, 1.7, 0, -2.0, 0);
+  box(arMag, matPolymer, 2.3, 0.7, 2.0, 0, -5.45, 0);
+  box(arMag, matPolymer, 1.75, 0.5, 1.45, 0, 1.1, 0);
+  lower.add(arMag);
+
+  /* ---- upper receiver: rotates around front pivot pin ---- */
+  var upperPivot = new THREE.Group();
+  upperPivot.name = 'ar_upper_pivot';
+  upperPivot.position.set(0, -0.85, 0);
+  root.add(upperPivot);
+
+  var upper = new THREE.Group();
+  upper.name = 'ar_upper';
+  upper.position.set(0, 0.85, 0);
+  upperPivot.add(upper);
+
+  box(upper, matUpper, 8.5, 0.55, 2.6, -0.3, -0.2, 0);
+  box(upper, matUpper, 8.5, 2.45, 0.55, -0.3, 1.0, -1.15);
+  box(upper, matUpper, 8.5, 0.6, 1.85, -0.3, 2.2, 0);
+  box(upper, matSteel, 8.0, 0.35, 1.55, -0.3, 2.62, 0);
+  box(upper, matUpper, 1.5, 1.4, 2.35, 0, -0.85, 0);
+  box(upper, matUpper, 1.7, 1.3, 2.3, -3.45, -0.85, 0);
+
+  box(upper, matBolt, 2.2, 1.85, 1.9, 2.8, 0.25, 0);
+  cylX(upper, matBarrel, 0.42, 0.42, 16.0, 8, 12.1, 0.25, 0);
+  cylX(upper, matSteel, 0.52, 0.52, 1.4, 8, 20.35, 0.25, 0);
+  box(upper, matUpper, 0.55, 0.8, 2.0, 20.7, 0.55, 0);
+  box(upper, matUpper, 0.55, 0.8, 2.0, 20.7, -0.55, 0);
+
+  cylX(upper, matUpper, 0.95, 0.95, 9.8, 8, 10.0, 0.25, 0);
+  cylX(upper, matSteel, 1.04, 1.04, 0.55, 8, 4.85, 0.25, 0);
+  cylX(upper, matSteel, 0.13, 0.13, 10.6, 6, 9.95, 1.28, 0);
+  box(upper, matSteel, 1.25, 1.6, 1.65, 15.1, 0.85, 0);
+  box(upper, matSteel, 0.35, 0.7, 1.7, 14.75, 2.0, 0);
+  box(upper, matSteel, 0.35, 0.7, 1.7, 15.45, 2.0, 0);
+  box(upper, matUpper, 0.5, 0.7, 1.7, 15.1, 2.28, 0);
+
+  box(upper, matUpper, 3.6, 0.7, 1.8, -1.7, 2.15, 0);
+  box(upper, matUpper, 0.4, 0.8, 1.9, 0.15, 2.9, 0);
+  box(upper, matUpper, 0.4, 0.8, 1.9, -1.1, 2.9, 0);
+
+  /* ---- charging handle: child of upper, slides rear along upper rail ---- */
+  var charging = new THREE.Group();
+  charging.name = 'ar_charging';
+  charging.position.set(-4.75, 0.72, 0);
+  box(charging, matSteel, 1.9, 0.3, 1.5, 0, 0, 0);
+  box(charging, matSteel, 0.4, 0.65, 1.5, -0.9, 0.3, 0);
+  box(charging, matSteel, 0.4, 0.65, 1.5, 0.9, 0.3, 0);
+  box(charging, matSteel, 1.2, 0.3, 1.5, 1.15, 0, 0);
+  upper.add(charging);
+
+  /* ---- BCG: child of upper, slides along upper receiver rails ---- */
+  var bcg = new THREE.Group();
+  bcg.name = 'ar_bcg';
+  bcg.position.set(0, 0, 0);
+  box(bcg, matBcg, 4.9, 1.45, 1.7, -1.4, 0.52, 0);
+  box(bcg, matBcg, 1.1, 0.5, 1.5, -3.6, 1.15, 0);
+  box(bcg, matSteel, 1.7, 0.65, 1.0, -1.65, 1.32, 0);
+  box(bcg, matSteel, 0.5, 0.3, 0.8, -0.9, 1.75, 0);
+  cylX(bcg, matBcg, 0.42, 0.42, 1.5, 7, -3.35, 0.52, 0);
+
+  var boltHead = new THREE.Group();
+  boltHead.name = 'ar_bolt';
+  boltHead.position.set(1.45, 0.5, 0);
+  cylX(boltHead, matBolt, 0.52, 0.52, 1.25, 8, 0.55, 0, 0);
+  var lugDefs = [
+    [0.25, 0, 0.52], [0.25, 0, -0.52], [0.25, 0.52, 0], [0.25, -0.52, 0],
+    [0.85, 0, 0.52], [0.85, 0, -0.52], [0.85, 0.52, 0], [0.85, -0.52, 0]
+  ];
+  for (var li=0; li<lugDefs.length; li++){
+    var ld = lugDefs[li];
+    box(boltHead, matBolt, 0.5, ld[1] === 0 ? 0.24 : 0.5, ld[2] === 0 ? 0.24 : 0.5, ld[0], ld[1], ld[2]);
+  }
+  box(boltHead, matAccent, 0.22, 0.3, 0.3, 1.12, 0.18, 0.28);
+  box(boltHead, matSteel, 0.3, 0.24, 0.24, 1.05, -0.18, -0.3);
+  bcg.add(boltHead);
+
+  box(upper, matUpper, 1.0, 0.45, 1.5, -3.2, 1.35, 0);
+  upper.add(bcg);
+
+  /* ---- CAD anchor empties ---- */
+  var anchorDefs = [
+    ['upper',       upper,    new THREE.Vector3(0.3, 1.5, 0)],
+    ['lower',       lower,    new THREE.Vector3(0.2, -0.6, 0)],
+    ['frontPivot',  lower,    new THREE.Vector3(0, -0.85, 0)],
+    ['rearPin',     rearPin,  new THREE.Vector3(0, 0, 0)],
+    ['bcg',         bcg,      new THREE.Vector3(-1.4, 0.52, 0)],
+    ['bolt',        boltHead, new THREE.Vector3(0.55, 0, 0)],
+    ['ejector',     boltHead, new THREE.Vector3(1.12, 0.18, 0.28)],
+    ['charging',    charging, new THREE.Vector3(0, 0, 0)],
+    ['gasBlock',    upper,    new THREE.Vector3(15.1, 1.1, 0)],
+    ['gasTube',     upper,    new THREE.Vector3(10.0, 1.28, 0)],
+    ['buffer',      lower,    new THREE.Vector3(-8.8, 0.42, 0)],
+    ['hammer',      lower,    new THREE.Vector3(2.25, 0.95, 0)],
+    ['trigger',     lower,    new THREE.Vector3(4.05, -2.8, 0)],
+    ['disconnector',lower,    new THREE.Vector3(2.02, 0.85, 0)],
+    ['magRelease',  lower,    new THREE.Vector3(2.45, 0.2, 1.42)],
+    ['safety',      lower,    new THREE.Vector3(2.3, 0.3, -1.44)],
+    ['magazine',    arMag,    new THREE.Vector3(0, -2.0, 0)]
+  ];
+  var anchors = {};
+  for (var ai=0; ai<anchorDefs.length; ai++){
+    var ad = anchorDefs[ai];
+    var o = new THREE.Object3D();
+    o.position.copy(ad[2]);
+    ad[1].add(o);
+    anchors[ad[0]] = o;
+  }
+
+  return {
+    root: root,
+    lower: lower,
+    upper: upper,
+    upperPivot: upperPivot,
+    rearPin: rearPin,
+    arMag: arMag,
+    bcg: bcg,
+    boltHead: boltHead,
+    charging: charging,
+    anchors: anchors
+  };
+}
+
+/* ============================================================
+   5. LOOP-FRIENDLY KEYFRAME TRACKS
+   ============================================================ */
+function makeTrack(times, values){
+  var n = times.length;
+  return function(t){
+    t = Math.min(1, Math.max(0, t));
+    if (t <= times[0]) return values[0];
+    if (t >= times[n-1]) return values[n-1];
+    for (var i=0; i<n-1; i++){
+      if (t >= times[i] && t <= times[i+1]){
+        var u = (t - times[i]) / (times[i+1] - times[i]);
+        var s = u*u*(3 - 2*u);
+        return values[i] + (values[i+1] - values[i]) * s;
+      }
+    }
+    return values[n-1];
+  };
+}
+
+/* USP cycle: exploded -> mag insert -> slide lock/recoil -> reset -> field strip */
+var uspTracks = {
+  slideZ: makeTrack([0, .10, .22, .40, .52, .78, .88, 1], [-2.7, 0, -2.35, 0, 0, -1.55, -2.7, -2.7]),
+  slideY: makeTrack([0, .10, .78, .88, 1], [0.95, 0, 0, 0.95, 0.95]),
+  barrelY: makeTrack([0, .10, .78, .88, 1], [0.55, 0, 0, 0.55, 0.55]),
+  barrelZ: makeTrack([0, .10, .78, .88, 1], [-0.55, 0, 0, -0.55, -0.55]),
+  compY: makeTrack([0, .10, .78, .88, 1], [0.55, 0, 0, 0.55, 0.55]),
+  compZ: makeTrack([0, .10, .78, .88, 1], [1.35, 0, 0, 1.35, 1.35]),
+  magY: makeTrack([0, .02, .14, .80, .90, 1], [-5.8, -5.8, 0, 0, -5.8, -5.8])
+};
+
+/* AR cycle: mag out -> rear pin out -> pivot open -> BCG rear / bolt unlock -> return -> close -> pin in -> mag in */
+var arTracks = {
+  magY: makeTrack([0, .06, .10, .86, .94, 1], [0, -5.6, -5.6, -5.6, 0, 0]),
+  pinZ: makeTrack([0, .08, .16, .82, .92, 1], [0, 3.0, 3.0, 3.0, 0, 0]),
+  upperOpen: makeTrack([0, .14, .32, .72, .88, 1], [0, 0, 0.78, 0.78, 0, 0]),
+  bcgTravel: makeTrack([0, .30, .54, .62, .78, .88, 1], [0, 0, 7.2, 7.2, 7.2, 0, 0]),
+  boltUnlock: makeTrack([0, .30, .44, .62, .76, .88, 1], [0, 0, 0.52, 0.52, 0, 0, 0]),
+  chTravel: makeTrack([0, .30, .54, .62, .78, .88, 1], [0, 0, -1.05, -1.05, -1.05, 0, 0])
+};
+
+function uspPhaseText(t){
+  if (t < 0.02 || t >= 0.90) return 'EXPLODED VIEW';
+  if (t < 0.14) return 'MAGAZINE SEATING';
+  if (t < 0.22) return 'READY / SLIDE HOME';
+  if (t < 0.32) return 'SLIDE RECOIL / LOCKED REAR';
+  if (t < 0.52) return 'SLIDE RETURN / RESET';
+  if (t < 0.78) return 'ASSEMBLED HOLD';
+  return 'FIELD STRIP / REVERSE';
+}
+function arPhaseText(t){
+  if (t < 0.06) return 'MAGAZINE RELEASE';
+  if (t < 0.16) return 'REAR TD PIN EXIT';
+  if (t < 0.32) return 'PIVOT OPEN / FRONT PIN';
+  if (t < 0.54) return 'BCG REAR / BOLT UNLOCK';
+  if (t < 0.62) return 'BCG LOCKED REAR HOLD';
+  if (t < 0.78) return 'BCG RETURN';
+  if (t < 0.88) return 'UPPER CLOSE / PIVOT';
+  if (t < 0.92) return 'REAR TD PIN SEAT';
+  if (t < 1.0) return 'MAGAZINE SEAT / LOCK';
+  return 'ASSEMBLED';
+}
+
+function applyUSPAnim(t){
+  usp.slide.position.z = uspTracks.slideZ(t);
+  usp.slide.position.y = uspTracks.slideY(t);
+  usp.barrel.position.y = uspTracks.barrelY(t);
+  usp.barrel.position.z = uspTracks.barrelZ(t);
+  usp.comp.position.y = uspTracks.compY(t);
+  usp.comp.position.z = uspTracks.compZ(t);
+  usp.mag.position.y = uspTracks.magY(t);
+}
+
+function applyARAnim(t){
+  ar.arMag.position.y = arTracks.magY(t);
+  ar.rearPin.position.z = arTracks.pinZ(t);
+  ar.upperPivot.rotation.z = -arTracks.upperOpen(t);
+  ar.bcg.position.x = -arTracks.bcgTravel(t);
+  ar.boltHead.rotation.x = -arTracks.boltUnlock(t);
+  ar.charging.position.x = -4.75 + arTracks.chTravel(t);
+}
+
+/* ============================================================
+   6. ORTHOGRAPHIC ORBIT CAMERA
+   ============================================================ */
+var view = {
+  theta: 1.02,
+  phi: 1.24,
+  zoom: 15.0,
+  target: new THREE.Vector3(0, 0.7, 1.5)
+};
+var aspect = 1;
+
+function applyCamera(){
+  aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  var sp = Math.sin(view.phi), cp = Math.cos(view.phi);
+  camera.position.set(
+    view.target.x + 60 * sp * Math.sin(view.theta),
+    view.target.y + 60 * cp,
+    view.target.z + 60 * sp * Math.cos(view.theta)
+  );
+  camera.lookAt(view.target);
+  var halfH = view.zoom;
+  camera.left = -halfH * aspect;
+  camera.right = halfH * aspect;
+  camera.top = halfH;
+  camera.bottom = -halfH;
+  camera.updateProjectionMatrix();
+}
+
+function setView(theta, phi, zoom, tx, ty, tz){
+  view.theta = theta; view.phi = phi; view.zoom = zoom;
+  view.target.set(tx, ty, tz);
+  applyCamera();
+}
+
+function resetView(){
+  if (mode === 'usp'){
+    setView(1.02, 1.24, 15.0, 0, 0.7, 1.5);
+  }else{
+    setView(0.06, 1.18, 17.0, 2.4, 1.7, 0);
+  }
+}
+
+var pointers = {};
+var panning = false;
+var canvasBox = canvas.getBoundingClientRect();
+function onPointerDown(e){
+  canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  pointers[e.pointerId] = { x:e.clientX, y:e.clientY };
+  panning = e.shiftKey || e.button === 2 || e.button === 1;
+}
+function onPointerMove(e){
+  var p = pointers[e.pointerId];
+  if (!p) return;
+  var dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  var keys = Object.keys(pointers);
+  if (keys.length === 1){
+    if (panning){
+      var halfH = view.zoom;
+      camera.updateMatrixWorld(true);
+      var el = camera.matrixWorld.elements;
+      var right = new THREE.Vector3(el[0], el[1], el[2]);
+      var up = new THREE.Vector3(el[4], el[5], el[6]);
+      var s = (2 * halfH) / Math.max(1, window.innerHeight);
+      view.target.addScaledVector(right, -dx * s);
+      view.target.addScaledVector(up, dy * s);
+      applyCamera();
+    }else{
+      view.theta -= dx * 0.0052;
+      view.phi -= dy * 0.0052;
+      view.phi = Math.min(1.52, Math.max(0.14, view.phi));
+      applyCamera();
+    }
+  }else if (keys.length === 2){
+    var a = pointers[keys[0]], b = pointers[keys[1]];
+    var d0 = Math.hypot(a.x - b.x, a.y - b.y);
+    a.x = e.clientX; a.y = e.clientY;
+    var d1 = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d0 > 1 && d1 > 1){
+      view.zoom *= d0 / d1;
+      view.zoom = Math.min(34, Math.max(4.5, view.zoom));
+      applyCamera();
+    }
+  }
+}
+function onPointerUp(e){
+  delete pointers[e.pointerId];
+  panning = false;
+}
+function onWheel(e){
+  e.preventDefault();
+  view.zoom *= Math.exp(e.deltaY * 0.0012);
+  view.zoom = Math.min(34, Math.max(4.5, view.zoom));
+  applyCamera();
+}
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('pointermove', onPointerMove);
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointercancel', onPointerUp);
+canvas.addEventListener('wheel', onWheel, { passive:false });
+canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+/* ============================================================
+   7. HUD / CAD OVERLAY
+   ============================================================ */
+var svg = document.getElementById('hud');
+var SVGNS = 'http://www.w3.org/2000/svg';
+var W = window.innerWidth, H = window.innerHeight;
+
+var defs = document.createElementNS(SVGNS, 'defs');
+svg.appendChild(defs);
+var gridPattern = document.createElementNS(SVGNS, 'pattern');
+gridPattern.setAttribute('id', 'cadGrid');
+gridPattern.setAttribute('width', '32'); gridPattern.setAttribute('height', '32');
+gridPattern.setAttribute('patternUnits', 'userSpaceOnUse');
+var gridMajor = document.createElementNS(SVGNS, 'rect');
+gridMajor.setAttribute('width', '32'); gridMajor.setAttribute('height', '32');
+gridMajor.setAttribute('fill', 'none'); gridMajor.setAttribute('stroke', 'rgba(80,180,220,.18)'); gridMajor.setAttribute('stroke-width', '1');
+gridPattern.appendChild(gridMajor);
+var gridMinorPath = document.createElementNS(SVGNS, 'path');
+gridMinorPath.setAttribute('d', 'M 0 8 H 32 M 8 0 V 32');
+gridMinorPath.setAttribute('stroke', 'rgba(80,180,220,.10)'); gridMinorPath.setAttribute('stroke-width', '1');
+gridPattern.appendChild(gridMinorPath);
+defs.appendChild(gridPattern);
+
+var cadChrome = document.createElementNS(SVGNS, 'g');
+svg.appendChild(cadChrome);
+var cadGridRect = document.createElementNS(SVGNS, 'rect');
+cadGridRect.setAttribute('fill', 'url(#cadGrid)');
+cadChrome.appendChild(cadGridRect);
+var cadFrame = document.createElementNS(SVGNS, 'rect');
+cadFrame.setAttribute('x', '18'); cadFrame.setAttribute('y', '18');
+cadFrame.setAttribute('fill', 'none'); cadFrame.setAttribute('stroke', 'rgba(88,214,255,.55)'); cadFrame.setAttribute('stroke-width', '1.5');
+cadChrome.appendChild(cadFrame);
+var cadCorner1 = document.createElementNS(SVGNS, 'path');
+cadCorner1.setAttribute('d', 'M 18 44 L 18 18 L 44 18'); cadCorner1.setAttribute('fill','none'); cadCorner1.setAttribute('stroke','rgba(88,214,255,.9)'); cadCorner1.setAttribute('stroke-width','2');
+cadChrome.appendChild(cadCorner1);
+var cadTitle = document.createElementNS(SVGNS, 'text');
+cadTitle.setAttribute('x', '30'); cadTitle.setAttribute('y', '52');
+cadTitle.setAttribute('fill', 'rgba(150,220,255,.85)'); cadTitle.setAttribute('font-size', '10');
+cadTitle.setAttribute('font-family', 'Courier New, monospace'); cadTitle.setAttribute('letter-spacing', '2');
+cadTitle.textContent = 'AR-15 // MECHANICAL FIELD-STRIP CYCLE — FRONT PIVOT + RAIL KINEMATICS';
+cadChrome.appendChild(cadTitle);
+
+var cadDimGroup = document.createElementNS(SVGNS, 'g');
+cadChrome.appendChild(cadDimGroup);
+var cadDimLine = document.createElementNS(SVGNS, 'line');
+cadDimLine.setAttribute('stroke', 'rgba(255,179,71,.75)'); cadDimLine.setAttribute('stroke-width', '1');
+cadChrome.appendChild(cadDimLine);
+var cadDimTicks = [document.createElementNS(SVGNS,'line'), document.createElementNS(SVGNS,'line')];
+cadDimTicks.forEach(function(l){ l.setAttribute('stroke','rgba(255,179,71,.75)'); l.setAttribute('stroke-width','1'); cadDimGroup.appendChild(l); });
+var cadDimText = document.createElementNS(SVGNS, 'text');
+cadDimText.setAttribute('fill', 'rgba(255,190,90,.95)'); cadDimText.setAttribute('font-size', '9');
+cadDimText.setAttribute('font-family', 'Courier New, monospace'); cadDimText.setAttribute('text-anchor', 'middle');
+cadDimText.textContent = 'PIVOT SPAN 3.4 CM — FRONT TD PIN';
+cadDimGroup.appendChild(cadDimText);
+
+var calloutLayer = document.createElementNS(SVGNS, 'g');
+svg.appendChild(calloutLayer);
+
+function makeCallout(name, color, lx, ly, anchorPos, side, visibleInAr){
+  var o = new THREE.Object3D();
+  o.position.copy(anchorPos);
+  var line = document.createElementNS(SVGNS, 'line');
+  line.setAttribute('stroke', color); line.setAttribute('stroke-width', '1');
+  line.setAttribute('stroke-dasharray', '4 3');
+  var dot = document.createElementNS(SVGNS, 'circle');
+  dot.setAttribute('r', '2.5'); dot.setAttribute('fill', color);
+  var txt = document.createElementNS(SVGNS, 'text');
+  txt.setAttribute('fill', color); txt.setAttribute('font-size', '10');
+  txt.setAttribute('font-family', 'Courier New, monospace'); txt.setAttribute('letter-spacing', '1');
+  txt.setAttribute('paint-order', 'stroke'); txt.setAttribute('stroke', '#05080a'); txt.setAttribute('stroke-width', '4');
+  txt.textContent = name;
+  calloutLayer.appendChild(line); calloutLayer.appendChild(dot); calloutLayer.appendChild(txt);
+  return { object:o, line:line, dot:dot, text:txt, lx:lx, ly:ly, side:side, color:color, arOnly:!!visibleInAr };
+}
+
+var uspHud = [];
+var arHud = [];
+
+function addCallout(list, parent, name, color, lx, ly, pos, side, arOnly){
+  var c = makeCallout(name, color, lx, ly, pos, side, arOnly);
+  parent.add(c.object);
+  list.push(c);
+}
+
+function buildHudAnchors(){
+  addCallout(uspHud, usp.slide, 'SLIDE / STEEL', '#ffb347', 0.16, 0.22, usp.anchors.slide.pos, 'end', false);
+  addCallout(uspHud, usp.barrel, 'BARREL / SILVER', '#e8f4ff', 0.78, 0.66, usp.anchors.barrel.pos, 'start', false);
+  addCallout(uspHud, usp.frame, 'POLYMER FRAME', '#b8c8d8', 0.52, 0.84, usp.anchors.frame.pos, 'start', false);
+  addCallout(uspHud, usp.comp, 'MATCH COMP / WEIGHT', '#e8f4ff', 0.82, 0.34, usp.anchors.comp.pos, 'start', false);
+  addCallout(uspHud, usp.mag, 'MAGAZINE', '#b8c8d8', 0.14, 0.72, usp.anchors.mag.pos, 'end', false);
+  addCallout(uspHud, usp.comp, 'FIBER FRONT · GREEN', '#59ff7c', 0.86, 0.16, usp.anchors.greenSight.pos, 'start', false);
+  addCallout(uspHud, usp.slide, 'FIBER REAR · RED', '#ff4f5e', 0.20, 0.12, usp.anchors.redSight.pos, 'end', false);
+
+  addCallout(arHud, ar.upper, 'UPPER RECEIVER', '#8fd8ff', 0.84, 0.16, ar.anchors.upper.position, 'start', true);
+  addCallout(arHud, ar.lower, 'LOWER RECEIVER', '#9db4c8', 0.12, 0.84, ar.anchors.lower.position, 'end', true);
+  addCallout(arHud, ar.lower, 'FRONT PIVOT PIN', '#ffb347', 0.16, 0.34, ar.anchors.frontPivot.position, 'end', true);
+  addCallout(arHud, ar.rearPin, 'REAR TD PIN', '#ffb347', 0.12, 0.22, ar.anchors.rearPin.position, 'end', true);
+  addCallout(arHud, ar.bcg, 'BCG / RAIL DRIVE', '#ffcf6e', 0.74, 0.60, ar.anchors.bcg.position, 'start', true);
+  addCallout(arHud, ar.boltHead, 'BOLT HEAD / LUGS', '#e8c88a', 0.70, 0.42, ar.anchors.bolt.position, 'start', true);
+  addCallout(arHud, ar.boltHead, 'EJECTOR', '#ff7b8a', 0.64, 0.30, ar.anchors.ejector.position, 'start', true);
+  addCallout(arHud, ar.charging, 'CHARGING HANDLE', '#8fd8ff', 0.10, 0.48, ar.anchors.charging.position, 'end', true);
+  addCallout(arHud, ar.upper, 'GAS BLOCK', '#8fd8ff', 0.86, 0.34, ar.anchors.gasBlock.position, 'start', true);
+  addCallout(arHud, ar.upper, 'GAS TUBE', '#8fd8ff', 0.86, 0.26, ar.anchors.gasTube.position, 'start', true);
+  addCallout(arHud, ar.lower, 'RECOIL SPRING / BUFFER', '#d8984a', 0.08, 0.66, ar.anchors.buffer.position, 'end', true);
+  addCallout(arHud, ar.lower, 'HAMMER', '#ff9c6e', 0.30, 0.90, ar.anchors.hammer.position, 'end', true);
+  addCallout(arHud, ar.lower, 'TRIGGER', '#ff9c6e', 0.40, 0.82, ar.anchors.trigger.position, 'end', true);
+  addCallout(arHud, ar.lower, 'DISCONNECTOR', '#ff9c6e', 0.54, 0.88, ar.anchors.disconnector.position, 'start', true);
+  addCallout(arHud, ar.lower, 'MAG RELEASE', '#ff9c6e', 0.52, 0.58, ar.anchors.magRelease.position, 'start', true);
+  addCallout(arHud, ar.lower, 'SAFETY SELECTOR', '#ff9c6e', 0.58, 0.68, ar.anchors.safety.position, 'start', true);
+  addCallout(arHud, ar.arMag, 'MAGAZINE', '#9db4c8', 0.42, 0.94, ar.anchors.magazine.position, 'start', true);
+}
+
+/* ============================================================
+   8. APP STATE / UI
+   ============================================================ */
+var usp = buildUSP();
+var ar = buildAR15();
+scene.add(usp.root);
+scene.add(ar.root);
+ar.root.visible = false;
+buildHudAnchors();
+
+var mode = 'usp';
+var playing = true;
+var phase = 0;
+var cycleSeconds = 16;
+var hudVisible = true;
+var lastTime = performance.now();
+var fpsAccum = 0, fpsFrames = 0, fpsDisplay = '--';
+
+var modeUspBtn = document.getElementById('modeUsp');
+var modeArBtn = document.getElementById('modeAr');
+var modeText = document.getElementById('modeText');
+var playBtn = document.getElementById('playBtn');
+var scrub = document.getElementById('scrub');
+var phaseLabel = document.getElementById('phaseLabel');
+var viewBtn = document.getElementById('viewBtn');
+var labelsBtn = document.getElementById('labelsBtn');
+var fpsText = document.getElementById('fpsText');
+
+function setMode(next){
+  mode = next;
+  phase = 0;
+  scrub.value = 0;
+  playing = true;
+  playBtn.textContent = 'PAUSE';
+  usp.root.visible = (mode === 'usp');
+  ar.root.visible = (mode === 'ar');
+  modeUspBtn.classList.toggle('active', mode === 'usp');
+  modeArBtn.classList.toggle('active', mode === 'ar');
+  modeText.textContent = mode === 'usp'
+    ? 'MODE: USP MATCH FIELD STRIP'
+    : 'MODE: AR-15 PIVOT + RAIL KINEMATICS';
+  cadChrome.style.display = (mode === 'ar' && hudVisible) ? '' : 'none';
+  resetView();
+}
+
+modeUspBtn.addEventListener('click', function(){ if(mode !== 'usp') setMode('usp'); });
+modeArBtn.addEventListener('click', function(){ if(mode !== 'ar') setMode('ar'); });
+
+playBtn.addEventListener('click', function(){
+  playing = !playing;
+  playBtn.textContent = playing ? 'PAUSE' : 'PLAY';
+});
+scrub.addEventListener('input', function(){
+  phase = parseFloat(scrub.value) / 1000;
+  playing = false;
+  playBtn.textContent = 'PLAY';
+});
+scrub.addEventListener('pointerdown', function(){
+  playing = false;
+  playBtn.textContent = 'PLAY';
+});
+viewBtn.addEventListener('click', resetView);
+labelsBtn.addEventListener('click', function(){
+  hudVisible = !hudVisible;
+  labelsBtn.textContent = hudVisible ? 'HUD ON' : 'HUD OFF';
+  calloutLayer.style.display = hudVisible ? '' : 'none';
+  cadChrome.style.display = (mode === 'ar' && hudVisible) ? '' : 'none';
+});
+window.addEventListener('keydown', function(e){
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (e.code === 'Space'){ e.preventDefault(); playBtn.click(); }
+  else if (e.key === '1'){ setMode('usp'); }
+  else if (e.key === '2'){ setMode('ar'); }
+  else if (e.key === 'r' || e.key === 'R'){ resetView(); }
+});
+
+/* ============================================================
+   9. RESIZE / RENDER LOOP
+   ============================================================ */
+function resize(){
+  W = window.innerWidth; H = window.innerHeight;
+  canvasBox = canvas.getBoundingClientRect();
+  var targetH = 380;
+  var scale = Math.min(0.72, Math.max(0.32, targetH / Math.max(1, H)));
+  renderer.setPixelRatio(1);
+  renderer.setSize(Math.max(1, Math.floor(W * scale)), Math.max(1, Math.floor(H * scale)), false);
+  applyCamera();
+  cadGridRect.setAttribute('width', W); cadGridRect.setAttribute('height', H);
+  cadFrame.setAttribute('width', W - 36); cadFrame.setAttribute('height', H - 36);
+  cadFrame.setAttribute('x', '18'); cadFrame.setAttribute('y', '18');
+  var c1 = 'M 18 58 L 18 18 L 58 18';
+  var c2 = 'M ' + (W-58) + ' 18 L ' + (W-18) + ' 18 L ' + (W-18) + ' 58';
+  var c3 = 'M ' + (W-18) + ' ' + (H-58) + ' L ' + (W-18) + ' ' + (H-18) + ' L ' + (W-58) + ' ' + (H-18);
+  var c4 = 'M 58 ' + (H-18) + ' L 18 ' + (H-18) + ' L 18 ' + (H-58);
+  cadCorner1.setAttribute('d', c1);
+  var corner2 = cadChrome.querySelectorAll('path')[1];
+  if (!corner2){
+    corner2 = document.createElementNS(SVGNS, 'path');
+    cadChrome.appendChild(corner2);
+  }
+  corner2.setAttribute('d', c2);
+  var corner3 = cadChrome.querySelectorAll('path')[2];
+  if (!corner3){
+    corner3 = document.createElementNS(SVGNS, 'path');
+    cadChrome.appendChild(corner3);
+  }
+  corner3.setAttribute('d', c3);
+  var corner4 = cadChrome.querySelectorAll('path')[3];
+  if (!corner4){
+    corner4 = document.createElementNS(SVGNS, 'path');
+    cadChrome.appendChild(corner4);
+  }
+  corner4.setAttribute('d', c4);
+  [corner2, corner3, corner4].forEach(function(p){
+    p.setAttribute('fill','none'); p.setAttribute('stroke','rgba(88,214,255,.9)'); p.setAttribute('stroke-width','2');
+  });
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+function updateCallouts(list){
+  var v = new THREE.Vector3();
+  for (var i=0; i<list.length; i++){
+    var c = list[i];
+    c.object.getWorldPosition(v);
+    v.project(camera);
+    var sx = (v.x * 0.5 + 0.5) * W;
+    var sy = (-v.y * 0.5 + 0.5) * H;
+    var behind = v.z > 1 || v.z < -1;
+    var offscreen = sx < -60 || sx > W + 60 || sy < -50 || sy > H + 50;
+    var hidden = behind || offscreen || !hudVisible;
+    c.line.setAttribute('x1', sx); c.line.setAttribute('y1', sy);
+    c.line.setAttribute('x2', c.lx * W); c.line.setAttribute('y2', c.ly * H);
+    c.dot.setAttribute('cx', sx); c.dot.setAttribute('cy', sy);
+    c.text.setAttribute('x', c.lx * W + (c.side === 'end' ? -8 : 8));
+    c.text.setAttribute('y', c.ly * H + 3);
+    c.text.setAttribute('text-anchor', c.side);
+    var d = hidden ? 'none' : '';
+    c.line.setAttribute('display', d);
+    c.dot.setAttribute('display', d);
+    c.text.setAttribute('display', d);
+  }
+}
+
+function updateCADChrome(){
+  var v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
+  ar.anchors.frontPivot.getWorldPosition(v1);
+  ar.anchors.rearPin.getWorldPosition(v2);
+  v1.project(camera); v2.project(camera);
+  var x1 = (v1.x * 0.5 + 0.5) * W;
+  var x2 = (v2.x * 0.5 + 0.5) * W;
+  var dimY = H * 0.88;
+  var lo = Math.min(x1, x2), hi = Math.max(x1, x2);
+  cadDimLine.setAttribute('x1', lo); cadDimLine.setAttribute('y1', dimY);
+  cadDimLine.setAttribute('x2', hi); cadDimLine.setAttribute('y2', dimY);
+  cadDimTicks[0].setAttribute('x1', lo); cadDimTicks[0].setAttribute('y1', dimY - 6);
+  cadDimTicks[0].setAttribute('x2', lo); cadDimTicks[0].setAttribute('y2', dimY + 6);
+  cadDimTicks[1].setAttribute('x1', hi); cadDimTicks[1].setAttribute('y1', dimY - 6);
+  cadDimTicks[1].setAttribute('x2', hi); cadDimTicks[1].setAttribute('y2', dimY + 6);
+  cadDimText.setAttribute('x', (lo + hi) / 2);
+  cadDimText.setAttribute('y', dimY - 9);
+}
+
+var loopAccum = 0;
+
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt = Math.min(0.1, Math.max(0, (now - lastTime) / 1000));
+  lastTime = now;
+
+  fpsAccum += dt; fpsFrames++;
+  if (fpsAccum >= 0.5){
+    fpsDisplay = Math.round(fpsFrames / fpsAccum) + ' FPS';
+    fpsAccum = 0; fpsFrames = 0;
+    fpsText.textContent = 'FRAME: ' + fpsDisplay;
+  }
+
+  if (playing){
+    phase = (phase + dt / cycleSeconds) % 1;
+    if (phase < 0) phase += 1;
+    scrub.value = Math.round(phase * 1000);
+  }
+
+  if (mode === 'usp'){
+    applyUSPAnim(phase);
+    phaseLabel.textContent = uspPhaseText(phase);
+  }else{
+    applyARAnim(phase);
+    phaseLabel.textContent = arPhaseText(phase);
+  }
+
+  applyCamera();
+  if (mode === 'usp'){
+    usp.root.updateMatrixWorld(true);
+    updateCallouts(uspHud);
+  }else{
+    ar.root.updateMatrixWorld(true);
+    updateCallouts(arHud);
+    updateCADChrome();
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* initial state */
+applyUSPAnim(0);
+applyARAnim(0);
+setMode('usp');
+calloutLayer.style.display = hudVisible ? '' : 'none';
+cadChrome.style.display = 'none';
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

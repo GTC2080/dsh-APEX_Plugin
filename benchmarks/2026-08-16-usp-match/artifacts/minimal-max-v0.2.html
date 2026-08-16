@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USP MATCH // PS1 LOW-POLY ARMORY</title>
+<style>
+  :root{
+    --bg:#92969b;
+    --panel:rgba(16,18,20,0.82);
+    --line:rgba(255,255,255,0.16);
+    --text:#e8e9e4;
+    --dim:#9fa3a0;
+    --usp:#7ee36b;
+    --ar:#5fd7ff;
+    --amber:#ffb347;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#7f8388;color:var(--text);
+    font-family:"Courier New",ui-monospace,Menlo,monospace;user-select:none;-webkit-user-select:none}
+  body{background:
+    radial-gradient(120% 90% at 50% 20%, #a2a6aa 0%, #8c9095 55%, #75797e 100%);}
+  #stage{position:fixed;inset:0;display:grid;place-items:center}
+  #viewport{position:relative;width:min(100vw,177.78vh);height:min(100vh,56.25vw);overflow:hidden;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.35), 0 22px 80px rgba(0,0,0,0.35)}
+  #gl,#ov{position:absolute;inset:0;width:100%;height:100%;display:block;
+    image-rendering:pixelated;image-rendering:crisp-edges}
+  #gl{background:#979ba0}
+  #ov{pointer-events:none;mix-blend-mode:screen}
+
+  #hud{position:fixed;left:0;right:0;top:0;bottom:0;pointer-events:none;z-index:10}
+  .bar{position:absolute;display:flex;gap:8px;align-items:center;pointer-events:auto;
+    background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(2px)}
+  .topbar{left:14px;top:14px;padding:8px 10px;gap:12px}
+  .brand{font-weight:bold;letter-spacing:1px;font-size:13px;white-space:nowrap}
+  .brand small{display:block;color:var(--dim);font-size:9px;letter-spacing:2px;margin-top:2px}
+  .modebtn{font:inherit;font-size:10px;font-weight:bold;letter-spacing:1px;color:var(--text);
+    background:#1c1f22;border:1px solid #3a3f44;padding:7px 10px;cursor:pointer}
+  .modebtn:hover{border-color:#6b7278}
+  .modebtn.active{background:#2b3a28;color:#c7ffb2;border-color:#6f9b5d;box-shadow:0 0 10px rgba(126,227,107,0.35)}
+  #arBtn.active{background:#0f2c38;color:#b9ecff;border-color:#3d8aa8;box-shadow:0 0 10px rgba(95,215,255,0.3)}
+
+  .bottombar{left:14px;bottom:14px;padding:8px 10px;flex-wrap:wrap;max-width:calc(100vw - 28px)}
+  button.ctl{font:inherit;font-size:10px;font-weight:bold;letter-spacing:1px;color:var(--text);
+    background:#1c1f22;border:1px solid #3a3f44;padding:7px 10px;cursor:pointer;min-width:74px}
+  button.ctl:hover{border-color:#8a9298}
+  button.ctl.on{color:#15180f;background:var(--usp);border-color:#a5e795}
+  .ctl label{display:flex;align-items:center;gap:5px;font-size:9px;letter-spacing:1px;color:var(--dim);cursor:pointer}
+  input[type=range]{width:92px;accent-color:#b8bdb2;cursor:pointer}
+  input[type=checkbox]{accent-color:#8fc97e;cursor:pointer}
+  .phase{font-size:9px;letter-spacing:1px;color:var(--amber);min-width:210px;white-space:nowrap}
+  .hint{position:absolute;right:14px;top:14px;padding:8px 10px;font-size:9px;line-height:1.7;
+    letter-spacing:1px;color:var(--dim);text-align:right}
+  .hint b{color:var(--text)}
+  #readout{position:absolute;right:14px;bottom:14px;padding:7px 9px;font-size:9px;line-height:1.7;
+    letter-spacing:1px;color:var(--dim);text-align:right;background:var(--panel);border:1px solid var(--line)}
+  #readout span{color:var(--text)}
+  @media (max-width:760px){
+    .hint{display:none}
+    .brand small{display:none}
+    .phase{min-width:0}
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div id="viewport"><canvas id="gl" width="480" height="270"></canvas><canvas id="ov" width="480" height="270"></canvas></div></div>
+
+<div id="hud">
+  <div class="bar topbar">
+    <div class="brand">LOW-POLY ARMORY<small>PS1 / HALF-LIFE PROCEDURAL LAB</small></div>
+    <button class="modebtn active" id="uspBtn">USP MATCH</button>
+    <button class="modebtn" id="arBtn">AR-15 CAD</button>
+  </div>
+  <div class="bar bottombar">
+    <button class="ctl on" id="playBtn">PAUSE</button>
+    <button class="ctl" id="resetBtn">RESET</button>
+    <label>SPEED <input id="speed" type="range" min="0.15" max="2.2" step="0.05" value="1"></label>
+    <label><input id="orbit" type="checkbox"> ORBIT</label>
+    <label><input id="dither" type="checkbox" checked> DITHER</label>
+    <span class="phase" id="phaseText">--</span>
+  </div>
+  <div class="hint">DRAG&nbsp;&nbsp;ORBIT<br><b>WHEEL</b>&nbsp;&nbsp;ZOOM<br><b>SPACE</b>&nbsp;&nbsp;PLAY/PAUSE<br><b>1 / 2</b>&nbsp;&nbsp;MODE</div>
+  <div id="readout">RES <span>480×270</span><br>FPS <span id="fps">60</span><br>GEO <span id="tris">0</span> TRIS</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>window.THREE || document.write('<script src="https://unpkg.com/three@0.160.0/build/three.min.js"><\/script>');</script>
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   PS1-style procedural armory: USP Match + AR-15 field strip.
+   Single file, no external model data. Three.js via jsDelivr.
+   ============================================================ */
+
+const W = 480, H = 270, ASPECT = W / H;
+
+const gl = document.getElementById('gl');
+const ov = document.getElementById('ov');
+const octx = ov.getContext('2d');
+const phaseText = document.getElementById('phaseText');
+const fpsEl = document.getElementById('fps');
+const trisEl = document.getElementById('tris');
+const playBtn = document.getElementById('playBtn');
+const resetBtn = document.getElementById('resetBtn');
+const speedInput = document.getElementById('speed');
+const orbitChk = document.getElementById('orbit');
+const ditherChk = document.getElementById('dither');
+const uspBtn = document.getElementById('uspBtn');
+const arBtn = document.getElementById('arBtn');
+
+const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: false, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.setClearColor(0x979ba0, 1);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x979ba0);
+scene.fog = new THREE.Fog(0x979ba0, 9, 22);
+
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -60, 60);
+
+/* ---------------------- deterministic RNG ------------------- */
+function rng(seed) {
+  let s = seed >>> 0;
+  return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/* ---------------------- procedural pixel textures ------------- */
+function makePixelTexture(size, colors) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const r = rng(0xC0FFEE + size * 131);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const block = ((x >> 2) + (y >> 2)) & 1;
+      const pick = colors[Math.floor(r() * colors.length)];
+      g.fillStyle = (block ? pick : colors[0]);
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const texPolymer = makePixelTexture(32, ['#25282b', '#31353a', '#1b1e20', '#3a3f44']);
+const texSlide   = makePixelTexture(32, ['#181a1d', '#2c3136', '#111316', '#34393f']);
+const texBright  = makePixelTexture(32, ['#c6ccd1', '#dfe3e7', '#9aa1a7', '#eef1f3']);
+const texDark    = makePixelTexture(32, ['#101214', '#262b30', '#07080a', '#33393f']);
+const texGrip    = makePixelTexture(32, ['#1d2023', '#2c3136', '#141719', '#373d42']);
+
+const MAT = {
+  polymer: new THREE.MeshLambertMaterial({ color: 0x8c8f92, map: texPolymer, flatShading: true }),
+  slide:   new THREE.MeshLambertMaterial({ color: 0x777d84, map: texSlide, flatShading: true }),
+  dark:    new THREE.MeshLambertMaterial({ color: 0x3f444a, map: texDark, flatShading: true }),
+  grip:    new THREE.MeshLambertMaterial({ color: 0x666a6e, map: texGrip, flatShading: true }),
+  bright:  new THREE.MeshLambertMaterial({ color: 0xdadde0, map: texBright, flatShading: true }),
+  steel:   new THREE.MeshLambertMaterial({ color: 0x8b9298, map: texDark, flatShading: true }),
+  orange:  new THREE.MeshLambertMaterial({ color: 0xd97830, flatShading: true }),
+  green:   new THREE.MeshBasicMaterial({ color: 0x42ff70 }),
+  red:     new THREE.MeshBasicMaterial({ color: 0xff3a30 }),
+  cyan:    new THREE.MeshBasicMaterial({ color: 0x38d8ff })
+};
+MAT.green.fog = false;
+MAT.red.fog = false;
+MAT.cyan.fog = false;
+
+/* ---------------------- low-poly helpers ---------------------- */
+function jitterGeo(geo, amount) {
+  const p = geo.attributes.position;
+  const r = rng(0xABCDEF ^ Math.round(amount * 1000));
+  for (let i = 0; i < p.count; i++) {
+    p.setXYZ(i,
+      p.getX(i) + (r() - 0.5) * amount,
+      p.getY(i) + (r() - 0.5) * amount,
+      p.getZ(i) + (r() - 0.5) * amount);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function add(parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, jitter = 0) {
+  const m = new THREE.Mesh(jitter ? jitterGeo(geo, jitter) : geo, mat);
+  m.position.set(x, y, z);
+  m.rotation.set(rx, ry, rz);
+  parent.add(m);
+  return m;
+}
+
+function box(parent, w, h, d, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, jitter = 0) {
+  return add(parent, new THREE.BoxGeometry(w, h, d), mat, x, y, z, rx, ry, rz, jitter);
+}
+
+function cyl(parent, rt, rb, h, mat, x = 0, y = 0, z = 0, seg = 8, rx = 0, ry = 0, rz = 0, jitter = 0) {
+  const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1);
+  return add(parent, g, mat, x, y, z, rx, ry, rz, jitter);
+}
+
+function cylZ(parent, r, len, mat, x = 0, y = 0, z = 0, seg = 10, jitter = 0) {
+  return cyl(parent, r, r, len, mat, x, y, z, seg, Math.PI / 2, 0, 0, jitter);
+}
+
+function makeHelix(radius, length, coils, tubeRadius) {
+  const pts = [];
+  const steps = 160;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const a = t * Math.PI * 2 * coils;
+    pts.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, -length / 2 + t * length));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), steps, tubeRadius, 4, false);
+}
+
+/* ============================================================
+   USP MATCH
+   ============================================================ */
+const usp = new THREE.Group();
+usp.name = 'usp';
+scene.add(usp);
+
+const uspParts = {
+  slideGroup: new THREE.Group(),
+  barrelGroup: new THREE.Group(),
+  compGroup: new THREE.Group(),
+  magRig: new THREE.Group(),
+  frameGroup: new THREE.Group()
+};
+usp.add(uspParts.frameGroup, uspParts.barrelGroup, uspParts.slideGroup, uspParts.compGroup, uspParts.magRig);
+
+/* frame / polymer lower */
+(function buildFrame() {
+  const f = uspParts.frameGroup;
+  box(f, 0.30, 0.34, 1.36, MAT.polymer, 0, -0.13, 0.04, 0, 0, 0, 0.008);
+  box(f, 0.30, 0.12, 0.46, MAT.polymer, 0, 0.06, -0.55, 0, 0, 0, 0.008);
+  box(f, 0.24, 0.10, 0.34, MAT.polymer, 0, 0.09, -0.88, 0.18, 0, 0, 0.006);          /* beavertail */
+  box(f, 0.32, 0.92, 0.30, MAT.grip, 0, -0.78, -0.24, -0.19, 0, 0, 0.010);           /* grip */
+  box(f, 0.36, 0.10, 0.33, MAT.dark, 0, -1.23, -0.21, -0.19, 0, 0, 0.004);           /* grip base */
+  box(f, 0.34, 0.06, 0.08, MAT.dark, 0, -0.36, -0.13, 0, 0, 0, 0.003);               /* front strap ridge */
+  for (let i = 0; i < 3; i++) box(f, 0.008, 0.06, 0.05, MAT.dark, 0.165, -0.52 - i * 0.14, -0.24 - i * 0.035, 0, 0, 0, 0.002);
+
+  /* trigger guard + trigger */
+  add(f, new THREE.TorusGeometry(0.235, 0.034, 6, 14), MAT.polymer, 0, -0.05, 0.58, 0, Math.PI / 2, 0, 0.006);
+  box(f, 0.035, 0.26, 0.075, MAT.dark, 0, -0.13, 0.56, 0.18, 0, 0, 0.003);
+  box(f, 0.16, 0.05, 0.05, MAT.dark, 0.16, -0.02, 0.18, 0, 0, 0, 0.002);            /* slide stop */
+  box(f, 0.05, 0.10, 0.10, MAT.dark, 0.195, -0.02, -0.08, 0, 0, 0, 0.002);          /* magazine release */
+  box(f, 0.05, 0.09, 0.07, MAT.dark, -0.18, 0.02, -0.28, 0, 0, 0, 0.002);            /* decocker */
+  box(f, 0.16, 0.16, 0.18, MAT.dark, 0, 0.18, -1.06, 0, 0, 0, 0.003);               /* hammer */
+})();
+
+/* bright silver barrel (always exposed) */
+(function buildBarrel() {
+  const b = uspParts.barrelGroup;
+  cylZ(b, 0.083, 2.55, MAT.bright, 0, 0.25, 0.45, 10, 0.006);
+  box(b, 0.20, 0.24, 0.42, MAT.steel, 0, 0.27, -0.66, 0, 0, 0, 0.004);              /* chamber block */
+  cylZ(b, 0.027, 1.15, MAT.dark, 0, 0.10, -0.32, 7, 0.003);                          /* guide rod */
+  cylZ(b, 0.105, 0.07, MAT.dark, 0, 0.25, 1.72, 12, 0.003);                          /* muzzle collar */
+  box(b, 0.07, 0.07, 0.12, MAT.dark, 0, 0.38, 1.70, 0, 0, 0, 0.003);                 /* locking block */
+})();
+
+/* slide assembly (base = battery, offset.z animates rearward) */
+(function buildSlide() {
+  const s = uspParts.slideGroup;
+  box(s, 0.30, 0.46, 1.50, MAT.slide, 0, 0.25, -0.28, 0, 0, 0, 0.010);
+  box(s, 0.23, 0.09, 1.46, MAT.slide, 0, 0.47, -0.28, 0, 0, 0, 0.006);              /* top slab */
+  box(s, 0.04, 0.14, 1.46, MAT.slide, 0.145, 0.08, -0.28, 0, 0, 0, 0.005);          /* side rails */
+  box(s, 0.04, 0.14, 1.46, MAT.slide, -0.145, 0.08, -0.28, 0, 0, 0, 0.005);
+  box(s, 0.19, 0.10, 0.34, MAT.dark, 0.11, 0.27, 0.12, 0, 0, 0, 0.003);            /* ejection port */
+  box(s, 0.03, 0.05, 0.09, MAT.steel, 0.16, 0.27, -0.10, 0, 0, 0, 0.002);           /* extractor */
+  box(s, 0.05, 0.05, 0.05, MAT.dark, 0.13, 0.28, -0.78, 0, 0, 0, 0.002);            /* loaded indicator */
+  for (let i = 0; i < 5; i++) {                                                        /* rear cocking serrations */
+    const zz = -0.88 - i * 0.052;
+    box(s, 0.012, 0.13, 0.026, MAT.dark, 0.155, 0.26, zz, 0, 0, 0, 0.0015);
+    box(s, 0.012, 0.13, 0.026, MAT.dark, -0.155, 0.26, zz, 0, 0, 0, 0.0015);
+  }
+  box(s, 0.20, 0.13, 0.16, MAT.dark, 0, 0.57, -0.94, 0, 0, 0, 0.003);               /* rear sight block */
+  box(s, 0.20, 0.06, 0.05, MAT.dark, 0, 0.52, -1.00, 0, 0, 0, 0.002);               /* rear notch */
+  box(s, 0.030, 0.030, 0.22, MAT.red, 0.075, 0.545, -0.985, 0, 0, 0, 0);            /* red fiber dots */
+  box(s, 0.030, 0.030, 0.22, MAT.red, -0.075, 0.545, -0.985, 0, 0, 0, 0);
+  box(s, 0.10, 0.06, 0.10, MAT.slide, 0, 0.47, 0.42, 0, 0, 0, 0.004);               /* front post base */
+})();
+
+/* front Match weight / compensator (stays visible through the loop) */
+(function buildComp() {
+  const c = uspParts.compGroup;
+  box(c, 0.40, 0.50, 0.66, MAT.dark, 0, 0.26, 1.18, 0, 0, 0, 0.010);
+  box(c, 0.30, 0.28, 0.76, MAT.dark, 0, -0.06, 1.20, 0, 0, 0, 0.008);               /* lower weight */
+  box(c, 0.24, 0.22, 0.72, MAT.steel, 0, 0.04, 1.20, 0, 0, 0, 0.006);               /* barrel tunnel */
+  for (let i = 0; i < 3; i++) {
+    box(c, 0.015, 0.11, 0.20, MAT.slide, 0.205, 0.34, 0.96 + i * 0.22, 0, 0, 0, 0.002);
+    box(c, 0.015, 0.11, 0.20, MAT.slide, -0.205, 0.34, 0.96 + i * 0.22, 0, 0, 0, 0.002);
+    box(c, 0.06, 0.015, 0.20, MAT.slide, 0, 0.54, 0.96 + i * 0.22, 0, 0, 0, 0.002);
+  }
+  box(c, 0.10, 0.12, 0.32, MAT.dark, 0, 0.58, 1.16, 0, 0, 0, 0.004);                /* sight rib */
+  box(c, 0.045, 0.10, 0.07, MAT.dark, 0, 0.68, 1.33, 0, 0, 0, 0.002);               /* front post */
+  box(c, 0.045, 0.045, 0.20, MAT.green, 0, 0.73, 1.33, 0, 0, 0, 0);                 /* green fiber */
+  box(c, 0.035, 0.035, 0.14, MAT.red, 0.13, 0.69, 1.20, 0, 0, 0, 0);                /* fiber witness dots */
+  box(c, 0.035, 0.035, 0.14, MAT.red, -0.13, 0.69, 1.20, 0, 0, 0, 0);
+})();
+
+/* magazine */
+(function buildMag() {
+  const rig = uspParts.magRig;
+  rig.position.set(0, -0.18, -0.04);
+  rig.rotation.x = -0.19;
+  const mg = new THREE.Group();
+  rig.add(mg);
+  box(mg, 0.26, 0.76, 0.30, MAT.dark, 0, -0.37, -0.02, 0, 0, 0, 0.007);
+  box(mg, 0.30, 0.10, 0.34, MAT.polymer, 0, -0.78, -0.02, 0, 0, 0, 0.003);           /* floor plate */
+  box(mg, 0.21, 0.05, 0.26, MAT.orange, 0, -0.68, -0.02, 0, 0, 0, 0.003);            /* follower */
+  box(mg, 0.05, 0.07, 0.05, MAT.dark, 0.145, -0.10, -0.02, 0, 0, 0, 0.002);          /* catch notch */
+  for (let i = 0; i < 3; i++) {
+    box(mg, 0.012, 0.03, 0.05, MAT.steel, 0.14, -0.30 - i * 0.13, -0.02, 0, 0, 0, 0.001);
+    box(mg, 0.012, 0.03, 0.05, MAT.steel, -0.14, -0.30 - i * 0.13, -0.02, 0, 0, 0, 0.001);
+  }
+  uspParts.magMesh = mg;
+})();
+
+/* ============================================================
+   AR-15 (optional high-end mechanical demo)
+   ============================================================ */
+const ar = new THREE.Group();
+ar.name = 'ar';
+ar.visible = false;
+scene.add(ar);
+
+const arParts = {
+  lower: new THREE.Group(),
+  upperPivot: new THREE.Group(),
+  rearPin: new THREE.Group(),
+  hammerPivot: new THREE.Group(),
+  triggerPivot: new THREE.Group(),
+  chargeGroup: new THREE.Group()
+};
+ar.add(arParts.lower, arParts.upperPivot);
+arParts.upperPivot.position.set(0, 0, 0.40);      /* front takedown pivot (real AR pivot point) */
+arParts.rearPin.position.set(0, 0, -0.35);
+
+(function buildLower() {
+  const L = arParts.lower;
+  box(L, 0.24, 0.34, 1.22, MAT.dark, 0, -0.17, -0.10, 0, 0, 0, 0.008);            /* lower receiver */
+  box(L, 0.20, 0.06, 1.22, MAT.steel, 0, 0.005, -0.10, 0, 0, 0, 0.003);           /* lower deck */
+  box(L, 0.20, 0.42, 0.20, MAT.grip, 0, -0.64, 0.02, -0.26, 0, 0, 0.008);         /* pistol grip */
+  box(L, 0.22, 0.06, 0.22, MAT.dark, 0, -0.86, 0.04, -0.26, 0, 0, 0.003);
+  add(L, new THREE.TorusGeometry(0.19, 0.026, 6, 14), MAT.dark, 0, -0.38, 0.14, 0, Math.PI / 2, 0, 0.006);
+  box(L, 0.035, 0.20, 0.05, MAT.dark, 0, -0.46, 0.14, 0.22, 0, 0, 0.003);          /* trigger blade */
+
+  /* hammer, trigger group, disconnector/sear */
+  const hp = arParts.hammerPivot;
+  hp.position.set(0, -0.10, -0.22);
+  L.add(hp);
+  box(hp, 0.06, 0.17, 0.07, MAT.steel, 0, 0.07, 0.06, 0, 0, 0, 0.003);             /* hammer body */
+  box(hp, 0.07, 0.03, 0.06, MAT.dark, 0, 0.15, 0.06, 0, 0, 0, 0.002);              /* hammer face */
+  const tp = arParts.triggerPivot;
+  tp.position.set(0, -0.34, 0.05);
+  L.add(tp);
+  box(tp, 0.035, 0.24, 0.05, MAT.steel, 0, 0.05, 0.10, 0, 0, 0, 0.002);            /* trigger bow */
+  box(L, 0.04, 0.05, 0.08, MAT.steel, 0, -0.16, -0.02, 0, 0, 0, 0.002);            /* disconnector */
+  box(L, 0.04, 0.03, 0.09, MAT.steel, 0, -0.11, 0.06, 0, 0, 0, 0.002);             /* sear surface */
+
+  box(L, 0.05, 0.11, 0.10, MAT.dark, 0.15, -0.20, -0.08, 0, 0, 0, 0.002);          /* magazine release */
+  box(L, 0.05, 0.04, 0.11, MAT.steel, 0.15, -0.28, 0.16, 0, 0, 0, 0.002);          /* bolt catch */
+  cyl(L, 0.045, 0.045, 0.10, MAT.dark, 0.16, -0.12, 0.14, 8, 0, 0, Math.PI / 2, 0.002); /* safety */
+
+  /* front pivot lug + pin */
+  box(L, 0.10, 0.18, 0.16, MAT.steel, 0, -0.05, 0.40, 0, 0, 0, 0.003);
+  cyl(L, 0.05, 0.05, 0.30, MAT.bright, 0, -0.04, 0.40, 10, 0, 0, Math.PI / 2, 0.002);
+  box(L, 0.05, 0.05, 0.12, MAT.cyan, 0, -0.14, 0.40, 0, 0, 0, 0);                  /* pivot indicator */
+
+  /* rear takedown lug + sliding rear pin */
+  box(L, 0.10, 0.16, 0.16, MAT.steel, 0, 0.02, -0.35, 0, 0, 0, 0.003);
+  L.add(arParts.rearPin);
+  cyl(arParts.rearPin, 0.045, 0.045, 0.36, MAT.bright, 0, 0, 0, 10, 0, 0, Math.PI / 2, 0.002);
+  box(arParts.rearPin, 0.07, 0.07, 0.03, MAT.cyan, 0.20, 0, 0, 0, 0, 0, 0);
+
+  /* magazine */
+  box(L, 0.18, 0.40, 0.17, MAT.steel, 0, -0.60, 0.22, 0, 0, 0, 0.006);
+  box(L, 0.20, 0.05, 0.19, MAT.dark, 0, -0.80, 0.22, 0, 0, 0, 0.002);
+
+  /* buffer tube (cutaway channel so recoil spring stays readable) + stock */
+  box(L, 0.16, 0.02, 0.95, MAT.dark, 0, -0.10, -1.12, 0, 0, 0, 0.004);
+  box(L, 0.025, 0.11, 0.95, MAT.dark, 0.075, -0.04, -1.12, 0, 0, 0, 0.003);
+  box(L, 0.025, 0.11, 0.95, MAT.dark, -0.075, -0.04, -1.12, 0, 0, 0, 0.003);
+  add(L, makeHelix(0.05, 0.92, 16, 0.012), MAT.bright, 0, -0.045, -1.12, 0, 0, 0, 0.002);
+  cylZ(L, 0.075, 0.10, MAT.steel, 0, -0.045, -0.62, 10, 0.003);                    /* castle nut */
+  box(L, 0.22, 0.22, 0.10, MAT.dark, 0, -0.045, -1.58, 0, 0, 0, 0.003);            /* buffer cap */
+  box(L, 0.22, 0.30, 0.55, MAT.grip, 0, -0.06, -1.95, 0, 0, 0, 0.007);             /* stock */
+  box(L, 0.25, 0.34, 0.06, MAT.dark, 0, -0.06, -2.24, 0, 0, 0, 0.003);             /* butt pad */
+})();
+
+(function buildUpper() {
+  const U = arParts.upperPivot;
+  const up = new THREE.Group();
+  U.add(up);
+
+  /* upper receiver */
+  box(up, 0.24, 0.30, 1.50, MAT.dark, 0, 0.10, -0.60, 0, 0, 0, 0.008);
+  box(up, 0.20, 0.06, 1.50, MAT.steel, 0, 0.28, -0.60, 0, 0, 0, 0.003);            /* picatinny rail */
+  for (let i = 0; i < 10; i++) box(up, 0.21, 0.025, 0.045, MAT.dark, 0, 0.315, -1.18 + i * 0.135, 0, 0, 0, 0.0015);
+  box(up, 0.18, 0.09, 0.38, MAT.steel, 0.13, 0.12, -0.42, 0, 0, 0, 0.003);         /* ejection port */
+  box(up, 0.03, 0.04, 0.09, MAT.dark, 0.15, 0.17, -0.80, 0, 0, 0, 0.002);          /* brass deflector */
+  cyl(up, 0.035, 0.035, 0.10, MAT.steel, 0.14, 0.13, -0.88, 8, 0, 0, Math.PI / 2, 0.002); /* forward assist */
+  box(up, 0.10, 0.18, 0.16, MAT.steel, 0, 0.04, 0.05, 0, 0, 0, 0.003);             /* front pivot lug */
+
+  /* barrel / handguard / gas system */
+  cylZ(up, 0.045, 2.60, MAT.steel, 0, 0.03, 1.35, 10, 0.004);
+  box(up, 0.14, 0.14, 0.22, MAT.dark, 0, 0.03, -0.10, 0, 0, 0, 0.003);             /* barrel extension */
+  box(up, 0.30, 0.22, 1.10, MAT.dark, 0, 0.02, 1.05, 0, 0, 0, 0.008);              /* handguard */
+  box(up, 0.32, 0.05, 1.10, MAT.steel, 0, 0.15, 1.05, 0, 0, 0, 0.003);             /* top rail */
+  for (let i = 0; i < 4; i++) box(up, 0.025, 0.10, 0.16, MAT.slide, 0.16, 0.02, 0.72 + i * 0.25, 0, 0, 0, 0.002);
+  for (let i = 0; i < 4; i++) box(up, 0.025, 0.10, 0.16, MAT.slide, -0.16, 0.02, 0.72 + i * 0.25, 0, 0, 0, 0.002);
+  box(up, 0.13, 0.17, 0.16, MAT.steel, 0, 0.13, 1.92, 0, 0, 0, 0.004);             /* gas block */
+  cylZ(up, 0.016, 1.55, MAT.bright, 0, 0.075, 0.85, 6, 0.002);                      /* gas tube */
+  box(up, 0.03, 0.08, 0.03, MAT.steel, 0, 0.24, 1.92, 0, 0, 0, 0.002);             /* gas block front sight */
+  box(up, 0.10, 0.10, 0.16, MAT.dark, 0, 0.03, 2.88, 0, 0, 0, 0.003);              /* muzzle device */
+  box(up, 0.025, 0.08, 0.12, MAT.steel, 0, 0.10, 2.88, 0, 0, 0, 0.002);
+
+  /* BCG rig: slides along upper receiver rails */
+  const bcg = new THREE.Group();
+  bcg.position.set(0, 0.11, -0.50);
+  up.add(bcg);
+  arParts.bcg = bcg;
+
+  box(bcg, 0.16, 0.16, 1.05, MAT.steel, 0, 0, -0.18, 0, 0, 0, 0.005);              /* carrier */
+  box(bcg, 0.05, 0.06, 0.24, MAT.dark, 0, 0.11, -0.28, 0, 0, 0, 0.002);            /* gas key */
+  box(bcg, 0.16, 0.15, 0.06, MAT.dark, 0, 0, -0.71, 0, 0, 0, 0.002);               /* carrier tail */
+  box(bcg, 0.10, 0.03, 0.10, MAT.dark, 0, 0.09, -0.42, 0, 0, 0, 0.002);            /* firing pin retainer */
+
+  const bolt = new THREE.Group();
+  bolt.position.set(0, 0, 0.36);
+  bcg.add(bolt);
+  arParts.bolt = bolt;
+  cylZ(bolt, 0.065, 0.24, MAT.bright, 0, 0, 0, 10, 0.003);
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    box(bolt, 0.045, 0.035, 0.10, MAT.steel, Math.cos(a) * 0.078, Math.sin(a) * 0.078, 0.12, 0, 0, -a, 0.002);
+  }
+  box(bolt, 0.05, 0.04, 0.05, MAT.dark, 0, 0.08, 0.02, 0, 0, 0, 0.002);            /* extractor */
+  box(bolt, 0.05, 0.04, 0.05, MAT.orange, 0, -0.075, -0.08, 0, 0, 0, 0.002);       /* ejector */
+
+  /* charging handle (coupled to BCG travel) */
+  const ch = arParts.chargeGroup;
+  ch.position.set(0, 0.16, -1.05);
+  up.add(ch);
+  box(ch, 0.20, 0.05, 0.28, MAT.dark, 0, 0, 0, 0, 0, 0, 0.003);
+  box(ch, 0.08, 0.10, 0.06, MAT.steel, -0.09, -0.04, 0.12, 0, 0, 0, 0.002);
+  box(ch, 0.08, 0.10, 0.06, MAT.steel, 0.09, -0.04, 0.12, 0, 0, 0, 0.002);
+  box(ch, 0.03, 0.06, 0.08, MAT.cyan, 0, -0.08, 0, 0, 0, 0, 0);                   /* latch highlight */
+})();
+
+/* ============================================================
+   camera / interaction
+   ============================================================ */
+const view = {
+  theta: 0.68, phi: 1.04, dist: 9.2, zoom: 1.0, size: 4.6,
+  tTheta: 0.68, tPhi: 1.04, tDist: 9.2, tZoom: 1.0, tSize: 4.6,
+  target: new THREE.Vector3(0, -0.75, 0.05),
+  tTarget: new THREE.Vector3(0, -0.75, 0.05)
+};
+const target = new THREE.Vector3();
+
+function updateProjection() {
+  const v = view.size * 0.5 / view.zoom;
+  camera.left = -v * ASPECT;
+  camera.right = v * ASPECT;
+  camera.top = v;
+  camera.bottom = -v;
+  camera.updateProjectionMatrix();
+}
+
+function applyCamera() {
+  const s = new THREE.Spherical(view.dist, view.phi, view.theta);
+  target.copy(view.target);
+  camera.position.set(
+    target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+    target.y + s.radius * Math.cos(s.phi),
+    target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+  );
+  camera.lookAt(target);
+  updateProjection();
+}
+
+let dragging = false, px = 0, py = 0;
+
+function pointerDown(e) {
+  if (e.target !== gl && e.target !== ov) return;
+  dragging = true; px = e.clientX; py = e.clientY; gl.setPointerCapture && gl.setPointerCapture(e.pointerId);
+}
+function pointerMove(e) {
+  if (!dragging) return;
+  const dx = e.clientX - px, dy = e.clientY - py;
+  px = e.clientX; py = e.clientY;
+  view.tTheta -= dx * 0.0085;
+  view.tPhi = Math.min(1.48, Math.max(0.32, view.tPhi + dy * 0.0065));
+}
+function pointerUp() { dragging = false; }
+gl.addEventListener('pointerdown', pointerDown);
+window.addEventListener('pointermove', pointerMove);
+window.addEventListener('pointerup', pointerUp);
+window.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  view.tZoom = Math.min(1.9, Math.max(0.52, view.tZoom * (e.deltaY > 0 ? 0.92 : 1.09)));
+}, { passive: false });
+
+/* ============================================================
+   timeline easing
+   ============================================================ */
+function clamp01(v) { return Math.min(1, Math.max(0, v)); }
+function smooth(v) { v = clamp01(v); return v * v * (3 - 2 * v); }
+function tween(time, a, b, from, to) {
+  return from + (to - from) * smooth((time - a) / (b - a));
+}
+
+const USP_LOOP = 13.0;
+const AR_LOOP = 18.0;
+
+let currentMode = 'usp';
+let animTime = 0;
+let playing = true;
+let speed = 1;
+let lastT = performance.now();
+let fpsAccum = 0, fpsFrames = 0;
+
+function uspState(t) {
+  let mag = -1.25;
+  if (t >= 1.2 && t < 2.4) mag = tween(t, 1.2, 2.4, -1.25, 0);
+  else if (t >= 2.4 && t < 10.4) mag = 0;
+  else if (t >= 10.4 && t < 11.5) mag = tween(t, 10.4, 11.5, 0, -1.25);
+
+  let comp = 0.55;
+  if (t >= 2.4 && t < 3.2) comp = tween(t, 2.4, 3.2, 0.55, 0);
+  else if (t >= 3.2 && t < 9.4) comp = 0;
+  else if (t >= 9.4 && t < 10.4) comp = tween(t, 9.4, 10.4, 0, 0.55);
+
+  let slide = -0.75;
+  if (t >= 3.2 && t < 4.2) slide = tween(t, 3.2, 4.2, -0.75, 0);
+  else if (t >= 4.2 && t < 5.4) slide = 0;
+  else if (t >= 5.4 && t < 6.2) slide = tween(t, 5.4, 6.2, 0, -0.56);
+  else if (t >= 6.2 && t < 7.3) slide = tween(t, 6.2, 7.3, -0.56, 0);
+  else if (t >= 7.3 && t < 8.5) slide = 0;
+  else if (t >= 8.5 && t < 9.4) slide = tween(t, 8.5, 9.4, 0, -0.75);
+
+  const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2.0);
+  return { mag, comp, slide, pulse };
+}
+
+function arState(t) {
+  let pin = 0;
+  if (t >= 2.0 && t < 3.1) pin = tween(t, 2.0, 3.1, 0, 0.58);
+  else if (t >= 3.1 && t < 14.2) pin = 0.58;
+  else if (t >= 14.2 && t < 15.1) pin = tween(t, 14.2, 15.1, 0.58, 0);
+
+  let open = 0;
+  if (t >= 3.1 && t < 5.0) open = tween(t, 3.1, 5.0, 0, 0.30);
+  else if (t >= 5.0 && t < 12.7) open = 0.30;
+  else if (t >= 12.7 && t < 14.2) open = tween(t, 12.7, 14.2, 0.30, 0);
+
+  let bcg = 0;
+  if (t >= 0.3 && t < 1.2) bcg = tween(t, 0.3, 1.2, 0, -0.55);
+  else if (t >= 1.2 && t < 2.0) bcg = tween(t, 1.2, 2.0, -0.55, 0);
+  else if (t >= 2.0 && t < 5.0) bcg = 0;
+  else if (t >= 5.0 && t < 8.0) bcg = tween(t, 5.0, 8.0, 0, -1.12);
+  else if (t >= 8.0 && t < 10.5) bcg = -1.12;
+  else if (t >= 10.5 && t < 12.7) bcg = tween(t, 10.5, 12.7, -1.12, 0);
+
+  let boltRot = 0;
+  if (t >= 0.3 && t < 0.8) boltRot = tween(t, 0.3, 0.8, 0, -0.32);
+  else if (t >= 1.4 && t < 2.0) boltRot = tween(t, 1.4, 2.0, -0.32, 0);
+  else if (t >= 2.0 && t < 5.0) boltRot = 0;
+  else if (t >= 5.0 && t < 6.0) boltRot = tween(t, 5.0, 6.0, 0, -0.40);
+  else if (t >= 6.0 && t < 12.2) boltRot = -0.40;
+  else if (t >= 12.2 && t < 12.7) boltRot = tween(t, 12.2, 12.7, -0.40, 0);
+
+  let hammer = 0;
+  if (t >= 0.3 && t < 1.5) hammer = tween(t, 0.3, 1.5, 0, -0.85);
+  else if (t >= 1.5 && t < 15.1) hammer = -0.85;
+  else if (t >= 15.1 && t < 16.0) hammer = tween(t, 15.1, 16.0, -0.85, 0);
+
+  let trigger = 0;
+  if (t >= 15.1 && t < 15.45) trigger = tween(t, 15.1, 15.45, 0, 0.12);
+  else if (t >= 15.45 && t < 16.0) trigger = tween(t, 15.45, 16.0, 0.12, 0);
+
+  return { pin, open, bcg, boltRot, hammer, trigger };
+}
+
+function updateUSP(st) {
+  uspParts.magMesh.position.y = st.mag;
+  uspParts.compGroup.position.z = st.comp;
+  uspParts.slideGroup.position.z = st.slide;
+  const gg = 0.52 + st.pulse * 0.16;
+  const rr = 0.48 + st.pulse * 0.14;
+  MAT.green.color.setHSL(0.37, 1.0, gg);
+  MAT.red.color.setHSL(0.995, 1.0, rr);
+}
+
+function updateAR(st) {
+  arParts.rearPin.position.x = st.pin;
+  arParts.upperPivot.rotation.x = st.open;
+  arParts.bcg.position.z = -0.50 + st.bcg;
+  arParts.bolt.rotation.z = st.boltRot;
+  arParts.hammerPivot.rotation.x = st.hammer;
+  arParts.triggerPivot.rotation.x = st.trigger;
+  arParts.chargeGroup.position.z = -1.05 + st.bcg;
+}
+
+function phaseLabel(t) {
+  if (currentMode === 'usp') {
+    if (t < 1.2) return 'EXPLODED // SLIDE LOCKED REAR';
+    if (t < 2.4) return 'ASSEMBLY 01 // MAGAZINE SEATING';
+    if (t < 3.2) return 'ASSEMBLY 02 // MATCH WEIGHT INDEXING';
+    if (t < 4.2) return 'ASSEMBLY 03 // SLIDE TO BATTERY';
+    if (t < 5.4) return 'LOCKED // MATCH READY';
+    if (t < 7.3) return 'CYCLE // SLIDE RETRACT + RETURN';
+    if (t < 8.5) return 'LOCKED // MATCH READY';
+    if (t < 10.4) return 'DISASSEMBLY // SLIDE + WEIGHT';
+    if (t < 11.5) return 'DISASSEMBLY // MAGAZINE DROP';
+    return 'EXPLODED // SLIDE LOCKED REAR';
+  }
+  if (t < 0.3) return 'AR-15 // CLOSED + FIRED';
+  if (t < 2.0) return 'FUNCTION PREP // CHARGE + HAMMER COCK';
+  if (t < 3.1) return 'FIELD STRIP 01 // REAR TAKEDOWN PIN';
+  if (t < 5.0) return 'FIELD STRIP 02 // UPPER PIVOTS OPEN';
+  if (t < 8.0) return 'FIELD STRIP 03 // BCG REARWARD + BOLT UNLOCK';
+  if (t < 10.5) return 'OPEN // HAMMER COCKED / SPRING VISIBLE';
+  if (t < 12.7) return 'REASSEMBLY // BCG RETURN + BOLT LOCK';
+  if (t < 14.2) return 'REASSEMBLY // UPPER CLOSES';
+  if (t < 15.1) return 'REASSEMBLY // REAR PIN SEATS';
+  if (t < 16.0) return 'FUNCTION CHECK // HAMMER DROP';
+  return 'AR-15 // CLOSED + FIRED';
+}
+
+/* ============================================================
+   dynamic technical overlay
+   ============================================================ */
+const noiseCanvas = document.createElement('canvas');
+noiseCanvas.width = 120; noiseCanvas.height = 68;
+(function drawNoise() {
+  const n = noiseCanvas.getContext('2d');
+  const r = rng(1234);
+  for (let y = 0; y < noiseCanvas.height; y++) {
+    for (let x = 0; x < noiseCanvas.width; x++) {
+      n.fillStyle = r() > 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
+      n.fillRect(x, y, 1, 1);
+    }
+  }
+})();
+
+const v3 = new THREE.Vector3();
+function projectWorld(x, y, z) {
+  v3.set(x, y, z).project(camera);
+  return { x: (v3.x * 0.5 + 0.5) * W, y: (-v3.y * 0.5 + 0.5) * H, behind: v3.z > 1 };
+}
+function localProject(obj, x, y, z) {
+  obj.updateWorldMatrix(true, false);
+  v3.set(x, y, z);
+  obj.localToWorld(v3);
+  v3.project(camera);
+  return { x: (v3.x * 0.5 + 0.5) * W, y: (-v3.y * 0.5 + 0.5) * H, behind: v3.z > 1 };
+}
+
+function drawLeader(ctx, p, text, color, alignRight) {
+  if (p.behind) return;
+  const tx = alignRight ? p.x - 26 : p.x + 10;
+  const ty = p.y - 6;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(alignRight ? p.x - 8 : p.x + 6, p.y);
+  ctx.lineTo(tx + (alignRight ? 16 : 0), ty);
+  ctx.stroke();
+  ctx.fillRect(Math.round(p.x) - 1.5, Math.round(p.y) - 1.5, 3, 3);
+  ctx.font = 'bold 8px "Courier New", monospace';
+  ctx.textAlign = alignRight ? 'right' : 'left';
+  ctx.fillText(text, alignRight ? p.x - 10 : p.x + 10, ty);
+}
+
+function drawOverlay() {
+  const ctx = octx;
+  ctx.clearRect(0, 0, W, H);
+  if (ditherChk.checked) {
+    ctx.globalAlpha = 0.045;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(noiseCanvas, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+  const accent = currentMode === 'usp' ? '#7ee36b' : '#5fd7ff';
+  ctx.strokeStyle = accent;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 1;
+  /* corner brackets */
+  const c = 18, o = 9;
+  ctx.beginPath();
+  ctx.moveTo(o, o + c); ctx.lineTo(o, o); ctx.lineTo(o + c, o);
+  ctx.moveTo(W - o - c, o); ctx.lineTo(W - o, o); ctx.lineTo(W - o, o + c);
+  ctx.moveTo(W - o, H - o - c); ctx.lineTo(W - o, H - o); ctx.lineTo(W - o - c, H - o);
+  ctx.moveTo(o + c, H - o); ctx.lineTo(o, H - o); ctx.lineTo(o, H - o - c);
+  ctx.stroke();
+  /* center reticle */
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 6, H / 2); ctx.lineTo(W / 2 - 2, H / 2);
+  ctx.moveTo(W / 2 + 2, H / 2); ctx.lineTo(W / 2 + 6, H / 2);
+  ctx.moveTo(W / 2, H / 2 - 6); ctx.lineTo(W / 2, H / 2 - 2);
+  ctx.moveTo(W / 2, H / 2 + 2); ctx.lineTo(W / 2, H / 2 + 6);
+  ctx.stroke();
+  ctx.globalAlpha = 0.9;
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 9px "Courier New", monospace';
+  ctx.fillText(currentMode === 'usp' ? 'USP MATCH // 9MM LONG-SLIDE' : 'AR-15 // PIVOT FIELD STRIP', 16, 22);
+  ctx.globalAlpha = 0.45;
+  ctx.fillStyle = '#e9eae6';
+  ctx.font = '8px "Courier New", monospace';
+  ctx.fillText('PROCEDURAL GEO // FLAT SHADE // 480X270 NEAREST', 16, 32);
+
+  if (currentMode === 'usp') {
+    const slideP = localProject(uspParts.slideGroup, 0, 0.44, 0.0);
+    const barrelP = localProject(uspParts.barrelGroup, 0, 0.25, 1.30);
+    const compP = localProject(uspParts.compGroup, 0, 0.45, 1.18);
+    const magP = localProject(uspParts.magMesh, 0, -0.45, 0);
+    const fiberP = localProject(uspParts.compGroup, 0, 0.73, 1.33);
+    const rearP = localProject(uspParts.slideGroup, 0, 0.55, -0.94);
+    drawLeader(ctx, slideP, 'SLIDE / LOCKED REAR', '#c8cdd1', slideP.x > W * 0.6);
+    drawLeader(ctx, barrelP, 'SILVER MATCH BARREL', '#e6eaec', barrelP.x > W * 0.6);
+    drawLeader(ctx, compP, 'MATCH WEIGHT / COMP', '#aeb4b8', compP.x > W * 0.6);
+    drawLeader(ctx, magP, 'MAGAZINE', '#c8cdd1', magP.x > W * 0.6);
+    drawLeader(ctx, fiberP, 'FIBER FRONT // GREEN', '#57ff7a', fiberP.x > W * 0.6);
+    drawLeader(ctx, rearP, 'FIBER REAR // RED', '#ff5a4d', rearP.x > W * 0.6);
+  } else {
+    const pivotP = projectWorld(0, -0.04, 0.40);
+    const pinP = localProject(arParts.rearPin, 0, 0, 0);
+    const bcgP = localProject(arParts.bcg, 0, 0, -0.35);
+    const boltP = localProject(arParts.bolt, 0, 0, 0.12);
+    const gasP = localProject(arParts.upperPivot, 0, 0.08, 1.25);
+    const springP = projectWorld(0, -0.045, -1.12);
+    const hammerP = localProject(arParts.hammerPivot, 0, 0.12, 0.06);
+    drawLeader(ctx, pivotP, 'FRONT PIVOT PIN', '#5fd7ff', pivotP.x > W * 0.6);
+    drawLeader(ctx, pinP, 'REAR TAKEDOWN PIN', '#8be8ff', pinP.x > W * 0.6);
+    drawLeader(ctx, bcgP, 'BCG // CARRIER', '#c8d4da', bcgP.x > W * 0.6);
+    drawLeader(ctx, boltP, 'BOLT HEAD // CAM UNLOCK', '#e6eaec', boltP.x > W * 0.6);
+    drawLeader(ctx, gasP, 'GAS TUBE', '#a9b6bb', gasP.x > W * 0.6);
+    drawLeader(ctx, springP, 'RECOIL SPRING / BUFFER', '#c8d4da', springP.x > W * 0.6);
+    drawLeader(ctx, hammerP, 'HAMMER / TRIGGER GROUP', '#e0b25e', hammerP.x > W * 0.6);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ============================================================
+   mode switching
+   ============================================================ */
+function setMode(mode, resetClock = true) {
+  currentMode = mode;
+  usp.visible = mode === 'usp';
+  ar.visible = mode === 'ar';
+  uspBtn.classList.toggle('active', mode === 'usp');
+  arBtn.classList.toggle('active', mode === 'ar');
+  if (resetClock) animTime = 0;
+
+  if (mode === 'usp') {
+    view.tTheta = 0.68; view.tPhi = 1.04; view.tDist = 9.2; view.tZoom = 1.0; view.tSize = 4.6;
+    view.tTarget.set(0, -0.75, 0.05);
+  } else {
+    view.tTheta = 0.52; view.tPhi = 1.02; view.tDist = 10.4; view.tZoom = 0.82; view.tSize = 3.6;
+    view.tTarget.set(0, -0.30, 0.30);
+  }
+  phaseText.textContent = phaseLabel(0);
+  syncPlayButton();
+}
+uspBtn.addEventListener('click', () => setMode('usp'));
+arBtn.addEventListener('click', () => setMode('ar'));
+
+playBtn.addEventListener('click', () => { playing = !playing; syncPlayButton(); });
+resetBtn.addEventListener('click', () => { animTime = 0; });
+speedInput.addEventListener('input', () => { speed = parseFloat(speedInput.value); });
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); playing = !playing; syncPlayButton(); }
+  else if (e.code === 'Digit1') setMode('usp');
+  else if (e.code === 'Digit2') setMode('ar');
+  else if (e.code === 'KeyR') animTime = 0;
+});
+
+function syncPlayButton() {
+  playBtn.textContent = playing ? 'PAUSE' : 'PLAY';
+  playBtn.classList.toggle('on', !playing);
+}
+
+/* ============================================================
+   lights + loop
+   ============================================================ */
+scene.add(new THREE.HemisphereLight(0xd8dde2, 0x4d5257, 1.35));
+const keyLight = new THREE.DirectionalLight(0xfff3df, 2.4);
+keyLight.position.set(3.5, 5.0, 4.5);
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0x9fb8ff, 0.9);
+fillLight.position.set(-4.0, -1.0, 2.5);
+scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0xffffff, 1.1);
+rimLight.position.set(-2.0, 2.5, -5.0);
+scene.add(rimLight);
+
+let triangleCount = 0;
+function countTris(root) {
+  let n = 0;
+  root.traverse(o => { if (o.isMesh && o.geometry) n += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
+  return Math.round(n);
+}
+triangleCount = countTris(scene);
+trisEl.textContent = String(triangleCount);
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, Math.max(0.0001, (now - lastT) / 1000));
+  lastT = now;
+
+  if (playing) animTime += dt * speed;
+
+  if (currentMode === 'usp') {
+    const st = uspState(animTime % USP_LOOP);
+    updateUSP(st);
+    phaseText.textContent = phaseLabel(animTime % USP_LOOP);
+  } else {
+    const st = arState(animTime % AR_LOOP);
+    updateAR(st);
+    phaseText.textContent = phaseLabel(animTime % AR_LOOP);
+  }
+
+  if (orbitChk.checked && !dragging) view.tTheta += dt * 0.10;
+  view.theta += (view.tTheta - view.theta) * 0.12;
+  view.phi += (view.tPhi - view.phi) * 0.12;
+  view.dist += (view.tDist - view.dist) * 0.08;
+  view.zoom += (view.tZoom - view.zoom) * 0.12;
+  view.size += (view.tSize - view.size) * 0.07;
+  view.target.lerp(view.tTarget, 0.08);
+
+  applyCamera();
+  scene.updateMatrixWorld(true);
+  renderer.render(scene, camera);
+  drawOverlay();
+
+  fpsFrames++;
+  fpsAccum += dt;
+  if (fpsAccum >= 0.5) {
+    fpsEl.textContent = String(Math.round(fpsFrames / fpsAccum));
+    fpsAccum = 0; fpsFrames = 0;
+  }
+}
+
+setMode('usp');
+updateUSP(uspState(0));
+updateAR(arState(0));
+applyCamera();
+requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
