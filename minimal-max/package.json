@@ -1,0 +1,37 @@
+{
+  "name": "dsh-minimal-max",
+  "version": "0.2.0",
+  "description": "Anchored DeepSeek Harness preset with Minimal bootstrap and on-demand Standard tools",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "presets/v2",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node --check index.js && node --check presets/v2/tool-gate.mjs && node --check presets/v2/dev-tool-search.mjs && node --check presets/v2/windows-bash.mjs && node --test",
+    "test": "node --test"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "agent-preset"
+  ],
+  "license": "MIT"
+}

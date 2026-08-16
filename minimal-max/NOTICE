@@ -1,0 +1,18 @@
+dsh-minimal-max retains a byte-identical v0.1 copy of the DeepSeek Harness
+Minimal agent composition and derives its v0.2 Minimal/Standard composition
+rows from:
+
+  https://github.com/deepseek-ai/deepseek-harness
+  commit 74bd5f76ba8035639bf5b4f94ce0449187ca5489
+
+The v0.2 anchored promotion/tool-gating design and Windows Git Bash
+compatibility tool are adapted from the reviewed source at:
+
+  https://github.com/xiaobright/dsh-anchored-standard
+  commit d97bec91a3d668f4cf1d03ee5f20aae84fb6f85c
+
+Both upstream projects are distributed under the MIT License. The full MIT
+permission notice is included in this repository's LICENSE file.
+
+DeepSeek and DeepSeek Harness are names of their respective owner. This
+community project is not affiliated with or endorsed by DeepSeek.

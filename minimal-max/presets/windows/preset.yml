@@ -1,0 +1,2 @@
+name: Minimal Max（实验）
+description: Windows 上保留 Minimal 双工具形状的 Git Bash 兼容基线；bash 状态不跨调用持久化。
