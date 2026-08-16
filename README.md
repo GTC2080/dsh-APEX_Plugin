@@ -89,21 +89,6 @@ Harness 官方 `spawn` provider，继承主模型当前 provider，但把子模�
 并提交不同的 brief。v0.5 的实验安全上限是每个真人任务四轮 Flash 研究；重复 brief 会在工具执行
 前被拒绝。该数值尚不是“最优解”，将由 Benchmark 的完成率、证据覆盖、token 和延迟共同校准。
 
-## 为什么 v0.5 没有复制完整 J-Space 或 routing-suite
-
-V4.1b 的首请求工具形状会影响后续轨迹。若在首请求内加入关键词分类、额外路由 prompt 或
-大量工具 schema，就同时改变了要验证的 Minimal 锚点。因此 v0.5 仍用真人消息划分任务，
-不读取任务关键词；晋级后由模型按具体证据缺口选择状态和研究工具。
-
-本版明确不包含：
-
-- 额外 LLM 路由调用。
-- spec/react/weak 关键词分类器。
-- super-injector、热重载或运行时覆写 Harness 源码。
-- `.jspace`、活动日志或其他写入用户项目的平行状态文件。
-- 自动或无限调用子 agent、工作流和研究轮次。
-- “所有任务都能提升模型能力”的结论。
-
 ## 要求
 
 - Node.js `>=22.19.0`
@@ -274,8 +259,7 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 
 ## 模型能力评测
 
-结构正确与模型能力是两个独立验收层。v0.5 的发布验收使用零依赖、DSH 原生的轻量测试，
-不安装 Terminal-Bench 2.1、DeepSWE、AutomationBench Public，也不依赖 Docker。当前验收分为：
+结构正确与模型能力是两个独立验收层。v0.5 的发布验收使用 DSH 原生的轻量测试，分为：
 
 - 结构合同：验证安装、Minimal 首请求、任务边界、工具租约、研究 Guard、跨平台组合与回滚。
 - 真实模型链：验证 V4 Pro 主会话、两轮 V4 Flash 定向研究、主模型复核、精确 PID、压缩恢复和
