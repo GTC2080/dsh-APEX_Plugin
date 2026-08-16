@@ -29,6 +29,11 @@ reuse-first, and YAGNI principles from:
 These code sources are distributed under the MIT License. The MIT permission
 notice used by this project is included in LICENSE.
 
+APEX v0.4 adds a local execution guard through the public `ctx.tools.guard`
+contract in the pinned DeepSeek Harness baseline. Its process-cleanup and
+validation constraints were derived from this repository's 2026-08-16 pilot;
+no additional third-party code was copied for that change.
+
 Research and design references
 ------------------------------
 
@@ -38,12 +43,12 @@ The first-request anchoring hypothesis and evaluation design were informed by:
   commit 04255b55f16c4439e538239fb9783070c4165081
 
 The decision to keep mode classification and extra model calls outside the
-v0.3 anchor was informed by:
+v0.3/v0.4 anchor was informed by:
 
   https://github.com/yjh051108/dsh-routing-suite
   commit a09eb0ade28e6ec3b8e5eb22985a14f6bfa1fbe5
 
-These two repositories are cited as research and design references; APEX v0.3
+These two repositories are cited as research and design references; APEX v0.3/v0.4
 does not copy their evaluation text, keyword classifier, injector, or router
 implementation.
 

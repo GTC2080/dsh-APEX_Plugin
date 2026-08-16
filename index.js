@@ -16,11 +16,13 @@ export const inject = ['agentPresets']
 
 export const PRESET_ID = 'minimal-max-v2'
 export const APEX_PRESET_ID = 'apex-v03'
+export const APEX_V04_PRESET_ID = 'apex-v04'
 
 const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32'])
 const PRESET_DIRECTORIES = Object.freeze({
   [PRESET_ID]: 'v2',
   [APEX_PRESET_ID]: 'apex-v03',
+  [APEX_V04_PRESET_ID]: 'apex-v04',
 })
 export const PRESET_IDS = Object.freeze(Object.keys(PRESET_DIRECTORIES))
 
@@ -194,7 +196,7 @@ export async function installPreset(
   return { status: created ? 'installed' : 'existing', path: target }
 }
 
-/** Install both the stable comparison preset and the new APEX experiment. */
+/** Install every immutable comparison and APEX preset shipped by this bundle. */
 export async function installPresets(agentPresets, platform = process.platform) {
   const results = []
   for (const presetId of PRESET_IDS) {
@@ -206,7 +208,7 @@ export async function installPresets(agentPresets, platform = process.platform) 
   return results
 }
 
-/** Materialize and mount-validate both presets when the bundle starts. */
+/** Materialize and mount-validate every versioned preset when the bundle starts. */
 export async function apply(ctx) {
   const results = await installPresets(ctx.agentPresets)
   for (const result of results) {

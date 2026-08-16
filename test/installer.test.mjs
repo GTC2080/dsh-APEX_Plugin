@@ -6,6 +6,7 @@ import test from 'node:test'
 
 import {
   APEX_PRESET_ID,
+  APEX_V04_PRESET_ID,
   installPresets,
   installPreset,
   PRESET_ID,
@@ -166,7 +167,27 @@ test('installs APEX v0.3 without changing the v0.2 control preset', async (t) =>
   assert.equal(await exists(join(root, APEX_PRESET_ID, 'windows-bash.mjs')), true)
 })
 
-test('bundle installation validates both versioned presets in order', async (t) => {
+test('installs APEX v0.4 without changing either earlier preset', async (t) => {
+  const root = await temporaryRoot(t)
+  const roster = fakeRoster(root)
+
+  await installPreset(roster, 'linux', PRESET_ID)
+  await installPreset(roster, 'linux', APEX_PRESET_ID)
+  const v2Before = await readFile(join(root, PRESET_ID, 'agent.cordis.yml'), 'utf8')
+  const v03Before = await readFile(join(root, APEX_PRESET_ID, 'agent.cordis.yml'), 'utf8')
+  const result = await installPreset(roster, 'linux', APEX_V04_PRESET_ID)
+
+  assert.deepEqual(result, { status: 'installed', path: join(root, APEX_V04_PRESET_ID) })
+  assert.equal(await readFile(join(root, PRESET_ID, 'agent.cordis.yml'), 'utf8'), v2Before)
+  assert.equal(await readFile(join(root, APEX_PRESET_ID, 'agent.cordis.yml'), 'utf8'), v03Before)
+  assert.match(
+    await readFile(join(root, APEX_V04_PRESET_ID, 'agent.cordis.yml'), 'utf8'),
+    /name: \.\/execution-guard\.mjs/,
+  )
+  assert.equal(await exists(join(root, APEX_V04_PRESET_ID, 'execution-guard.mjs')), true)
+})
+
+test('bundle installation validates all versioned presets in order', async (t) => {
   const root = await temporaryRoot(t)
   const roster = fakeRoster(root)
   const results = await installPresets(roster, 'darwin')
@@ -174,8 +195,9 @@ test('bundle installation validates both versioned presets in order', async (t) 
   assert.deepEqual(results.map(({ presetId, status }) => ({ presetId, status })), [
     { presetId: PRESET_ID, status: 'installed' },
     { presetId: APEX_PRESET_ID, status: 'installed' },
+    { presetId: APEX_V04_PRESET_ID, status: 'installed' },
   ])
-  assert.deepEqual(roster.validations(), [PRESET_ID, APEX_PRESET_ID])
+  assert.deepEqual(roster.validations(), [PRESET_ID, APEX_PRESET_ID, APEX_V04_PRESET_ID])
 })
 
 test('APEX validation failure rolls back APEX but preserves v0.2', async (t) => {
@@ -192,6 +214,25 @@ test('APEX validation failure rolls back APEX but preserves v0.2', async (t) => 
   )
   assert.equal(await exists(join(root, PRESET_ID)), true)
   assert.equal(await exists(join(root, APEX_PRESET_ID)), false)
+  assert.equal(await exists(join(root, APEX_V04_PRESET_ID)), false)
+})
+
+test('v0.4 validation failure preserves both earlier presets', async (t) => {
+  const root = await temporaryRoot(t)
+  await installPreset(fakeRoster(root), 'linux', PRESET_ID)
+  await installPreset(fakeRoster(root), 'linux', APEX_PRESET_ID)
+  const roster = fakeRoster(root, {
+    validationError: new Error('v0.4 mount rejected'),
+    validationPresetId: APEX_V04_PRESET_ID,
+  })
+
+  await assert.rejects(
+    installPresets(roster, 'linux'),
+    /failed Harness mount validation: v0.4 mount rejected/,
+  )
+  assert.equal(await exists(join(root, PRESET_ID)), true)
+  assert.equal(await exists(join(root, APEX_PRESET_ID)), true)
+  assert.equal(await exists(join(root, APEX_V04_PRESET_ID)), false)
 })
 
 test('uses one conditionally composed v0.2 tree on every supported platform', () => {
@@ -205,6 +246,9 @@ test('resolves the self-contained APEX tree and rejects unknown bundled ids', ()
   assert.match(presetSourceFor('darwin', APEX_PRESET_ID), /presets[/\\]apex-v03[/\\]?$/)
   assert.match(presetSourceFor('linux', APEX_PRESET_ID), /presets[/\\]apex-v03[/\\]?$/)
   assert.match(presetSourceFor('win32', APEX_PRESET_ID), /presets[/\\]apex-v03[/\\]?$/)
+  assert.match(presetSourceFor('darwin', APEX_V04_PRESET_ID), /presets[/\\]apex-v04[/\\]?$/)
+  assert.match(presetSourceFor('linux', APEX_V04_PRESET_ID), /presets[/\\]apex-v04[/\\]?$/)
+  assert.match(presetSourceFor('win32', APEX_V04_PRESET_ID), /presets[/\\]apex-v04[/\\]?$/)
   assert.throws(() => presetSourceFor('linux', 'unknown'), /unknown bundled preset/)
 })
 

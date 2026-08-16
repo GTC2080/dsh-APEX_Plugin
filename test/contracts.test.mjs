@@ -12,6 +12,7 @@ const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const posixComposition = join(projectRoot, 'presets', 'posix', 'agent.cordis.yml')
 const v2Composition = join(projectRoot, 'presets', 'v2', 'agent.cordis.yml')
 const apexComposition = join(projectRoot, 'presets', 'apex-v03', 'agent.cordis.yml')
+const apexV04Composition = join(projectRoot, 'presets', 'apex-v04', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
@@ -25,14 +26,34 @@ const officialMinimal = join(
   'minimal',
   'agent.cordis.yml',
 )
+const officialStandard = join(
+  dshCheckout,
+  'apps',
+  'cli',
+  'config',
+  'agent-presets',
+  'standard',
+  'agent.cordis.yml',
+)
+
+function packageNames(text) {
+  return new Set([...text.matchAll(/^\s+name: '([^']+)'$/gm)].map((match) => match[1]))
+}
+
+async function missingStandardPackages(composition) {
+  const expected = packageNames(await readFile(officialStandard, 'utf8'))
+  const actual = packageNames(await readFile(composition, 'utf8'))
+  return [...expected].filter((packageName) => !actual.has(packageName))
+}
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.3.0')
+  assert.equal(manifest.version, '0.4.0')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
   assert.equal(manifest.dependencies, undefined)
+  assert.equal(manifest.files.includes('presets/apex-v04'), true)
   assert.match(
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
@@ -45,6 +66,19 @@ test('APEX v0.3 composition preserves the Minimal anchor and adds only a post-an
   assert.match(content, /complete: true/)
   assert.match(content, /includeRuntimeContext: false/)
   assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/dev-tool-search\.mjs/)
+  assert.match(content, /name: \.\/apex-policy\.mjs/)
+  assert.match(content, /name: \.\/windows-bash\.mjs/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-str-replace-editor'/)
+})
+
+test('APEX v0.4 preserves the Minimal anchor and adds post-anchor policy plus a tool guard', async () => {
+  const content = await readFile(apexV04Composition, 'utf8')
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/execution-guard\.mjs/)
   assert.match(content, /name: \.\/dev-tool-search\.mjs/)
   assert.match(content, /name: \.\/apex-policy\.mjs/)
   assert.match(content, /name: \.\/windows-bash\.mjs/)
@@ -94,47 +128,49 @@ test('v0.2 control tree remains byte-identical to the reviewed release', async (
   }
 })
 
+test('APEX v0.3 tree remains byte-identical to the released baseline', async () => {
+  const expected = {
+    'agent.cordis.yml': '43b2c6252a540c2a0da7cfea094e60c7104e8c009957090e85fcfcd1c096092b',
+    'apex-policy.mjs': 'eac27efd9c26049dafa31377d1487967787d3b270306e7040f67b4d1e0685e17',
+    'dev-tool-search.mjs': '1945b15a7cadc1072e6df451c71dc93a19e8c73dcef7a8d65ea341fbcfcfb886',
+    'preset.yml': '27d39633f873f9d5edae38eec9d177b7dc47852b6bed9ee2abeebd43e67f3829',
+    'tool-gate.mjs': 'cd4da6807c28b2e4385806d8930a3760bc2ad2bdff675f3a9a4fca26fdf0f2c7',
+    'windows-bash.mjs': '55323a7fd5574572a9486f2fdd34285f347c2412cfff9cf4c6d49b0f43a92c36',
+  }
+  for (const [file, digest] of Object.entries(expected)) {
+    const content = await readFile(join(projectRoot, 'presets', 'apex-v03', file))
+    assert.equal(createHash('sha256').update(content).digest('hex'), digest, file)
+  }
+})
+
+test('APEX v0.4 reuses the released Windows fallback', async () => {
+  assert.equal(
+    await readFile(join(projectRoot, 'presets', 'apex-v04', 'windows-bash.mjs'), 'utf8'),
+    await readFile(join(projectRoot, 'presets', 'apex-v03', 'windows-bash.mjs'), 'utf8'),
+  )
+})
+
 test(
   'v0.2 carries every current Standard package row before request-time filtering',
-  { skip: !existsSync(officialMinimal) },
+  { skip: !existsSync(officialStandard) },
   async () => {
-    const officialStandard = join(
-      dshCheckout,
-      'apps',
-      'cli',
-      'config',
-      'agent-presets',
-      'standard',
-      'agent.cordis.yml',
-    )
-    const packageNames = (text) => new Set(
-      [...text.matchAll(/^\s+name: '([^']+)'$/gm)].map((match) => match[1]),
-    )
-    const expected = packageNames(await readFile(officialStandard, 'utf8'))
-    const actual = packageNames(await readFile(v2Composition, 'utf8'))
-    assert.deepEqual([...expected].filter((packageName) => !actual.has(packageName)), [])
+    assert.deepEqual(await missingStandardPackages(v2Composition), [])
   },
 )
 
 test(
   'APEX v0.3 carries every current Standard package row before request-time filtering',
-  { skip: !existsSync(officialMinimal) },
+  { skip: !existsSync(officialStandard) },
   async () => {
-    const officialStandard = join(
-      dshCheckout,
-      'apps',
-      'cli',
-      'config',
-      'agent-presets',
-      'standard',
-      'agent.cordis.yml',
-    )
-    const packageNames = (text) => new Set(
-      [...text.matchAll(/^\s+name: '([^']+)'$/gm)].map((match) => match[1]),
-    )
-    const expected = packageNames(await readFile(officialStandard, 'utf8'))
-    const actual = packageNames(await readFile(apexComposition, 'utf8'))
-    assert.deepEqual([...expected].filter((packageName) => !actual.has(packageName)), [])
+    assert.deepEqual(await missingStandardPackages(apexComposition), [])
+  },
+)
+
+test(
+  'APEX v0.4 carries every current Standard package row before request-time filtering',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    assert.deepEqual(await missingStandardPackages(apexV04Composition), [])
   },
 )
 
