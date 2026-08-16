@@ -1,5 +1,5 @@
 /**
- * Host-side installer for the platform-specific Minimal Max agent preset.
+ * Host-side installer for the versioned Minimal Max and APEX agent presets.
  *
  * The plugin is intentionally model-invisible: it registers no tools and no
  * prompt sections. It creates the preset once in the roster's writable user
@@ -15,8 +15,14 @@ export const name = 'minimal-max-preset-installer'
 export const inject = ['agentPresets']
 
 export const PRESET_ID = 'minimal-max-v2'
+export const APEX_PRESET_ID = 'apex-v03'
 
 const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32'])
+const PRESET_DIRECTORIES = Object.freeze({
+  [PRESET_ID]: 'v2',
+  [APEX_PRESET_ID]: 'apex-v03',
+})
+export const PRESET_IDS = Object.freeze(Object.keys(PRESET_DIRECTORIES))
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
@@ -36,12 +42,12 @@ function isMissingPath(error) {
 
 class UnsafeTreeEntryError extends Error {}
 
-function assertSafeTarget(rootPath) {
+function assertSafeTarget(rootPath, presetId) {
   if (!isAbsolute(rootPath)) {
     throw new Error('dsh-minimal-max: writable preset root must be absolute: ' + rootPath)
   }
   const root = resolve(rootPath)
-  const target = resolve(root, PRESET_ID)
+  const target = resolve(root, presetId)
   if (dirname(target) !== root) {
     throw new Error('dsh-minimal-max: resolved preset path escaped its writable root')
   }
@@ -49,11 +55,15 @@ function assertSafeTarget(rootPath) {
 }
 
 /** Resolve the package-owned preset tree for one Node platform identifier. */
-export function presetSourceFor(platform = process.platform) {
+export function presetSourceFor(platform = process.platform, presetId = PRESET_ID) {
   if (!SUPPORTED_PLATFORMS.has(platform)) {
     throw new Error('dsh-minimal-max: unsupported platform ' + JSON.stringify(platform))
   }
-  return fileURLToPath(new URL('./presets/v2/', import.meta.url))
+  const directory = PRESET_DIRECTORIES[presetId]
+  if (directory === undefined) {
+    throw new Error('dsh-minimal-max: unknown bundled preset ' + JSON.stringify(presetId))
+  }
+  return fileURLToPath(new URL(`./presets/${directory}/`, import.meta.url))
 }
 
 async function regularFiles(root, directory = root) {
@@ -121,8 +131,8 @@ async function copyTreeCreateOnly(source, target) {
   }
 }
 
-async function validate(agentPresets) {
-  await agentPresets.standingKeyFor(PRESET_ID)
+async function validate(agentPresets, presetId) {
+  await agentPresets.standingKeyFor(presetId)
 }
 
 /**
@@ -131,18 +141,22 @@ async function validate(agentPresets) {
  * The optional platform argument exists so the installer paths can be tested
  * on one host without pretending to execute another platform's shell.
  */
-export async function installPreset(agentPresets, platform = process.platform) {
-  const source = presetSourceFor(platform)
-  const existing = (await agentPresets.list()).find((preset) => preset.id === PRESET_ID)
+export async function installPreset(
+  agentPresets,
+  platform = process.platform,
+  presetId = PRESET_ID,
+) {
+  const source = presetSourceFor(platform, presetId)
+  const existing = (await agentPresets.list()).find((preset) => preset.id === presetId)
   if (existing !== undefined) {
     const existingDirectory = dirname(existing.path)
     if (!await sameTree(source, existingDirectory)) {
       throw new Error(
-        'dsh-minimal-max: preset "' + PRESET_ID + '" already exists with different content at '
+        'dsh-minimal-max: preset "' + presetId + '" already exists with different content at '
         + existingDirectory + '; remove or rename it explicitly before installing this bundle',
       )
     }
-    await validate(agentPresets)
+    await validate(agentPresets, presetId)
     return { status: 'existing', path: existingDirectory }
   }
 
@@ -150,7 +164,7 @@ export async function installPreset(agentPresets, platform = process.platform) {
   if (writable === undefined) {
     throw new Error('dsh-minimal-max: this Harness profile has no writable user preset root')
   }
-  const { root, target } = assertSafeTarget(writable.path)
+  const { root, target } = assertSafeTarget(writable.path, presetId)
   await mkdir(root, { recursive: true, mode: 0o700 })
 
   let created = false
@@ -161,29 +175,44 @@ export async function installPreset(agentPresets, platform = process.platform) {
     if (!isAlreadyExists(error)) throw error
     if (!await sameTree(source, target)) {
       throw new Error(
-        'dsh-minimal-max: preset "' + PRESET_ID + '" appeared concurrently with different content at '
+        'dsh-minimal-max: preset "' + presetId + '" appeared concurrently with different content at '
         + target,
       )
     }
   }
 
   try {
-    await validate(agentPresets)
+    await validate(agentPresets, presetId)
   } catch (error) {
     if (created) await rm(target, { recursive: true, force: true })
     throw new Error(
-      'dsh-minimal-max: installed preset failed Harness mount validation: ' + errorMessage(error),
+      'dsh-minimal-max: installed preset "' + presetId
+      + '" failed Harness mount validation: ' + errorMessage(error),
       { cause: error },
     )
   }
   return { status: created ? 'installed' : 'existing', path: target }
 }
 
-/** Materialize and mount-validate the preset when the bundle starts. */
+/** Install both the stable comparison preset and the new APEX experiment. */
+export async function installPresets(agentPresets, platform = process.platform) {
+  const results = []
+  for (const presetId of PRESET_IDS) {
+    results.push({
+      presetId,
+      ...await installPreset(agentPresets, platform, presetId),
+    })
+  }
+  return results
+}
+
+/** Materialize and mount-validate both presets when the bundle starts. */
 export async function apply(ctx) {
-  const result = await installPreset(ctx.agentPresets)
-  console.log(
-    '[dsh-minimal-max] ' + result.status
-    + ' and mount-validated preset "' + PRESET_ID + '"',
-  )
+  const results = await installPresets(ctx.agentPresets)
+  for (const result of results) {
+    console.log(
+      '[dsh-apex] ' + result.status
+      + ' and mount-validated preset "' + result.presetId + '"',
+    )
+  }
 }

@@ -11,6 +11,7 @@ import { apply as registerWindowsBash } from '../presets/v2/windows-bash.mjs'
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const posixComposition = join(projectRoot, 'presets', 'posix', 'agent.cordis.yml')
 const v2Composition = join(projectRoot, 'presets', 'v2', 'agent.cordis.yml')
+const apexComposition = join(projectRoot, 'presets', 'apex-v03', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
@@ -27,7 +28,7 @@ const officialMinimal = join(
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.2.0')
+  assert.equal(manifest.version, '0.3.0')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
@@ -36,6 +37,18 @@ test('package declares an official DSH bundle layer without install-time scripts
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
   )
+})
+
+test('APEX v0.3 composition preserves the Minimal anchor and adds only a post-anchor policy', async () => {
+  const content = await readFile(apexComposition, 'utf8')
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/dev-tool-search\.mjs/)
+  assert.match(content, /name: \.\/apex-policy\.mjs/)
+  assert.match(content, /name: \.\/windows-bash\.mjs/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-str-replace-editor'/)
 })
 
 test('pins the POSIX first-request composition to the reviewed Minimal baseline', async () => {
@@ -67,6 +80,20 @@ test('v0.2 composition keeps the complete Minimal persona and gated bootstrap pa
   assert.match(content, /name: '@deepseek-ai\/dsh-tool-(?:fs|web|skill|todo|goal)'/)
 })
 
+test('v0.2 control tree remains byte-identical to the reviewed release', async () => {
+  const expected = {
+    'agent.cordis.yml': '0e30bb496903ca2314740d45d23a71dee23941faa0e6abb072dbabcc4bb87d7e',
+    'tool-gate.mjs': 'ffc37df9f97fc3798957d49d68c49c05ecdffe5a4f84058930ac0e8d3a72ed6b',
+    'dev-tool-search.mjs': 'ec78382f602d15919cbc7afd590ac58aef43f765db2f832d0e9946f6291ca01f',
+    'windows-bash.mjs': '7f05d13d77ed92aa1457fafd4036fbd7d4a5c71c166dfc1f89d3118c55675c70',
+    'preset.yml': '33c9672d8b11e24cf15cf8c5c34128bde9ccc97d309e3165449898f9bf642e18',
+  }
+  for (const [file, digest] of Object.entries(expected)) {
+    const content = await readFile(join(projectRoot, 'presets', 'v2', file))
+    assert.equal(createHash('sha256').update(content).digest('hex'), digest, file)
+  }
+})
+
 test(
   'v0.2 carries every current Standard package row before request-time filtering',
   { skip: !existsSync(officialMinimal) },
@@ -85,6 +112,28 @@ test(
     )
     const expected = packageNames(await readFile(officialStandard, 'utf8'))
     const actual = packageNames(await readFile(v2Composition, 'utf8'))
+    assert.deepEqual([...expected].filter((packageName) => !actual.has(packageName)), [])
+  },
+)
+
+test(
+  'APEX v0.3 carries every current Standard package row before request-time filtering',
+  { skip: !existsSync(officialMinimal) },
+  async () => {
+    const officialStandard = join(
+      dshCheckout,
+      'apps',
+      'cli',
+      'config',
+      'agent-presets',
+      'standard',
+      'agent.cordis.yml',
+    )
+    const packageNames = (text) => new Set(
+      [...text.matchAll(/^\s+name: '([^']+)'$/gm)].map((match) => match[1]),
+    )
+    const expected = packageNames(await readFile(officialStandard, 'utf8'))
+    const actual = packageNames(await readFile(apexComposition, 'utf8'))
     assert.deepEqual([...expected].filter((packageName) => !actual.has(packageName)), [])
   },
 )

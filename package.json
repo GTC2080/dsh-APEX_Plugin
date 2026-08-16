@@ -1,7 +1,7 @@
 {
   "name": "dsh-minimal-max",
-  "version": "0.2.0",
-  "description": "Anchored DeepSeek Harness preset with Minimal bootstrap and on-demand Standard tools",
+  "version": "0.3.0",
+  "description": "APEX preset for DeepSeek Harness with a Minimal anchor, lean guidance, and on-demand Standard tools",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -11,6 +11,7 @@
     "index.js",
     "cordis.patch.yml",
     "presets/v2",
+    "presets/apex-v03",
     "README.md",
     "LICENSE",
     "NOTICE"
@@ -24,14 +25,16 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node --check index.js && node --check presets/v2/tool-gate.mjs && node --check presets/v2/dev-tool-search.mjs && node --check presets/v2/windows-bash.mjs && node --test",
+    "check": "node --check index.js && node --check presets/v2/tool-gate.mjs && node --check presets/v2/dev-tool-search.mjs && node --check presets/v2/windows-bash.mjs && node --check presets/apex-v03/tool-gate.mjs && node --check presets/apex-v03/dev-tool-search.mjs && node --check presets/apex-v03/windows-bash.mjs && node --check presets/apex-v03/apex-policy.mjs && node --test",
     "test": "node --test"
   },
   "keywords": [
     "deepseek",
     "deepseek-harness",
     "dsh",
-    "agent-preset"
+    "agent-preset",
+    "apex",
+    "ponytail"
   ],
   "license": "MIT"
 }
