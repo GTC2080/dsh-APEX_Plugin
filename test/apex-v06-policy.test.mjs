@@ -256,6 +256,7 @@ test('APEX v0.6 cancels a managed child beyond the hard step boundary', async ()
 test('APEX v0.6 wall budget cancels only the exact managed child', async () => {
   let statusListener
   let dispose
+  let deadline
   let rootCancelled = false
   const cancelled = new Promise((resolve) => {
     const child = managedChild()
@@ -275,9 +276,16 @@ test('APEX v0.6 wall budget cancels only the exact managed child', async () => {
     statusListener({ agent: child, status: 'running' })
   })
   try {
-    assert.deepEqual(await cancelled, { kind: 'hook', reason: CHILD_BUDGET_REASON })
+    const timeout = new Promise((_, reject) => {
+      deadline = setTimeout(() => reject(new Error('child wall budget did not settle')), 100)
+    })
+    assert.deepEqual(
+      await Promise.race([cancelled, timeout]),
+      { kind: 'hook', reason: CHILD_BUDGET_REASON },
+    )
     assert.equal(rootCancelled, false)
   } finally {
+    clearTimeout(deadline)
     dispose()
   }
 })
