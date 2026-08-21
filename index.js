@@ -19,6 +19,9 @@ export const APEX_PRESET_ID = 'apex-v03'
 export const APEX_V04_PRESET_ID = 'apex-v04'
 export const APEX_V041_PRESET_ID = 'apex-v041'
 export const APEX_V05_PRESET_ID = 'apex-v05'
+export const APEX_V051_PRESET_ID = 'apex-v051'
+export const APEX_V06_PRESET_ID = 'apex-v06'
+export const APEX_V061_PRESET_ID = 'apex-v061'
 
 const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32'])
 const PRESET_DIRECTORIES = Object.freeze({
@@ -27,8 +30,14 @@ const PRESET_DIRECTORIES = Object.freeze({
   [APEX_V04_PRESET_ID]: 'apex-v04',
   [APEX_V041_PRESET_ID]: 'apex-v041',
   [APEX_V05_PRESET_ID]: 'apex-v05',
+  [APEX_V051_PRESET_ID]: 'apex-v051',
+  [APEX_V06_PRESET_ID]: 'apex-v06',
+  [APEX_V061_PRESET_ID]: 'apex-v061',
 })
 export const PRESET_IDS = Object.freeze(Object.keys(PRESET_DIRECTORIES))
+export const ACTIVE_PRESET_IDS = Object.freeze([
+  APEX_V061_PRESET_ID,
+])
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
@@ -200,10 +209,10 @@ export async function installPreset(
   return { status: created ? 'installed' : 'existing', path: target }
 }
 
-/** Install every immutable comparison and APEX preset shipped by this bundle. */
+/** Install only the current preset; official Minimal is the external control. */
 export async function installPresets(agentPresets, platform = process.platform) {
   const results = []
-  for (const presetId of PRESET_IDS) {
+  for (const presetId of ACTIVE_PRESET_IDS) {
     results.push({
       presetId,
       ...await installPreset(agentPresets, platform, presetId),
