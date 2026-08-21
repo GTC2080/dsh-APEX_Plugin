@@ -445,6 +445,9 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 
 ### 已发布的 pilot
 
+- [2026-08-22 Poolrooms 官方 Minimal 与 APEX v0.6.1 对比](https://github.com/GTC2080/dsh-APEX_Plugin/tree/main/benchmarks/2026-08-22-poolrooms)：
+  官方 Minimal 成品 85/100；APEX v0.6.1 最新成品 83/100，但后者包含宿主修复与会话恢复，
+  不能作为无偏收益样本。最新干净配对中 APEX 为 74/100，因此现有证据尚未证明稳定提升。
 - [2026-08-16 USP Match 四模式真实模型对比](https://github.com/GTC2080/dsh-APEX_Plugin/tree/main/benchmarks/2026-08-16-usp-match)：
   APEX v0.3、Minimal Max v0.2、官方 Minimal 与官方 Standard 的同题单样本测试。该记录为
   `n=1`，不代表稳定排序。
