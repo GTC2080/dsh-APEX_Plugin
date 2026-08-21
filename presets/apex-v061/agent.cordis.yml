@@ -1,0 +1,214 @@
+# APEX v0.6.1 keeps the official Minimal persona and tool pair while the policy
+# declares the host-selected workspace before the first model action. After one
+# successful Minimal tool action, it exposes only the optional capability broker.
+# The full APEX policy and control tools appear only after explicit activation.
+# Keep tool-gate first: its prepend listeners are the final request filters.
+
+- id: tool-gate
+  name: ./tool-gate.mjs
+
+# This guard contributes no prompt or tool schema; workspace escapes, unsafe
+# cleanup, and stalled research fail before dispatch.
+- id: execution-guard
+  name: ./execution-guard.mjs
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: You are a helpful software engineer assistant.
+    complete: true
+    includeRuntimeContext: false
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: dev-tool-search
+  name: ./dev-tool-search.mjs
+
+# The rc.8 Minimal persistent shell owns the model-facing shell name on each
+# platform, so Standard's one-shot shell twins stay disabled.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: true
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: true
+
+- id: persistent-shell
+  name: cordis:group
+  group: true
+  isolate:
+    terminals: true
+  config:
+    - id: pty
+      name: '@deepseek-ai/dsh-terminal'
+
+    - id: terminal-bash
+      name: '@deepseek-ai/dsh-terminal-bash'
+      disabled: !!js process.platform === 'win32'
+      config:
+        timeoutMs: 300000
+
+    - id: persistent-bash
+      name: '@deepseek-ai/dsh-tool-bash-persistent'
+      disabled: !!js process.platform === 'win32'
+      config:
+        timeoutMs: 300000
+        description: |-
+          Run commands in a bash shell
+          * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+          * You don't have access to the internet via this tool.
+          * You do have access to a mirror of common linux and python packages via apt and pip.
+          * State is persistent across command calls and discussions with the user.
+          * To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.
+          * Please avoid commands that may produce a very large amount of output.
+          * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
+
+    - id: terminal-pwsh
+      name: '@deepseek-ai/dsh-terminal-bash'
+      disabled: !!js process.platform !== 'win32'
+      config:
+        shellDialect: pwsh
+        timeoutMs: 300000
+
+    - id: persistent-pwsh
+      name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+      disabled: !!js process.platform !== 'win32'
+      config:
+        timeoutMs: 300000
+        description: |-
+          Run commands in a PowerShell shell
+          * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+          * You don't have access to the internet via this tool.
+          * State is persistent across command calls and discussions with the user.
+          * Use native Windows paths (C:\...) and $env:NAME variables; this is PowerShell, not bash.
+          * Please avoid commands that may produce a very large amount of output.
+          * Please run long lived commands in the background, e.g. 'Start-Job' or start a server with Start-Process.
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: bootstrap-filesystem
+  name: cordis:group
+  group: true
+  isolate:
+    fs: true
+  config:
+    # Keep the Minimal editor schema while enforcing the session sandbox mode.
+    - id: fs-sandbox
+      name: '@deepseek-ai/dsh-fs-sandbox'
+      config:
+        cwd: !!js process.env.DSH_CWD ?? process.cwd()
+
+    - id: str-replace-editor
+      name: '@deepseek-ai/dsh-tool-str-replace-editor'
+      config:
+        maxOutputChars: 16000
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+
+# The short APEX policy appears only after an APEX capability is activated. It
+# is registered after plan mode so active mode narration remains closer.
+- id: apex-policy
+  name: ./apex-policy.mjs
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+- id: tool-subagent-control
+  name: '@deepseek-ai/dsh-tool-subagent-control'
+
+- id: tool-subagent-list-agents
+  name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+# Parent-only lifecycle wait: visible only while a worker activation is pending.
+- id: apex-worker-wait
+  name: ./worker-wait.mjs
+
+# Parent-only continuation and takeover appear only after worker settlement.
+# Browser validation stays behind the optional capability broker.
+- id: apex-continue
+  name: ./apex-continue.mjs
+
+- id: apex-web-validation
+  name: ./apex-validation.mjs
+
+- id: apex-vision
+  # Foreground and read-only: the vision child returns evidence directly to Pro.
+  name: ./apex-vision.mjs
+
+- id: tool-apex-build
+  # Structured fields are compiled into the canonical child brief by the host,
+  # so malformed prompt headings cannot consume a model retry.
+  name: ./apex-build.mjs
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000

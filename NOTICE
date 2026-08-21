@@ -7,7 +7,7 @@ Code baselines
 DeepSeek Harness Minimal and Standard agent compositions:
 
   https://github.com/deepseek-ai/deepseek-harness
-  commit 74bd5f76ba8035639bf5b4f94ce0449187ca5489
+  commit 141eb6fef83422698aef7a981029e843e8161534
 
 Minimal Max v0.2 anchored promotion, tool gating, and Windows Git Bash
 compatibility were adapted from:
@@ -43,21 +43,71 @@ The first-request anchoring hypothesis and evaluation design were informed by:
   commit 04255b55f16c4439e538239fb9783070c4165081
 
 The decision to keep mode classification and extra model calls outside the
-v0.3-v0.5 anchor, and the v0.5 Pro/Flash role split, were informed by:
+v0.3-v0.6.1 anchor, and the v0.5+ Pro/Flash role split, were informed by:
 
   https://github.com/yjh051108/dsh-routing-suite
   commit a09eb0ade28e6ec3b8e5eb22985a14f6bfa1fbe5
 
-The v0.5 bounded Goal/Verified/Open/Next/Evidence state and stall-recovery
+The v0.6.1 Pro-led revision was also reviewed against the empirical tool-surface
+and real-Harness assembly findings in:
+
+  https://github.com/yjh051108/dsh-router-standard
+  commit 69dfd6aa1df4b2dfcfb1abaecc5384b279950019
+
+Its Flash-specific neutral persona, same-request near-field guidance, decision
+closure, and small tool-surface findings informed the v0.6.1 worker brief. APEX
+implements those ideas independently through scoped Harness persona and tool
+contracts; it does not copy the repository's keyword classifier or prompt
+modules. The referenced repository is MIT-licensed.
+
+The bounded continuation guide and anti-runaway behavior were also reviewed
+against the pinned Super Injector implementation:
+
+  https://github.com/yjh051108/dsh-super-injector
+  commit c08136a526e7515dca106441e65cf7fccf63bbae
+
+APEX does not copy its runtime injector, hot reload, source overrides, or
+model-facing tool catalog. It applies only the reviewed design principles
+through public Harness plugin hooks. The referenced repository is distributed
+under the BSD 3-Clause License.
+
+The v0.5+ bounded Goal/Verified/Open/Next/Evidence state and stall-recovery
 design were informed by:
 
   https://github.com/Tiger3807861189/J-Space-Cognition-Suite-V3.6
   commit 46bac14a86398b406c6c6d07baf1fef9cfc8d370
 
+The v0.6.1 parent-coordinated, bounded parallel work-item design was informed
+by the public Kimi Swarm documentation and technical report:
+
+  https://github.com/MoonshotAI/kimi-help-center/blob/master/en-US/agent/swarm.md
+  https://arxiv.org/abs/2602.02276
+
 These repositories are cited as research and design references. APEX does not
 copy their evaluation text, file controller, keyword classifier, injector,
-router, or prompt modules. v0.5 implements the ideas independently through
+router, or prompt modules. APEX implements the ideas independently through
 DeepSeek Harness session events and the official subagent tool/provider APIs.
+
+APEX v0.6 adds its bounded Flash Max implementation path through the pinned
+Harness `tool-subagent` and `agent/request` contracts. No additional
+third-party code was copied for this change.
+
+APEX v0.6.1 was compatibility-reviewed against DeepSeek Harness commit
+141eb6fef83422698aef7a981029e843e8161534. It uses the official rc.8 Minimal
+persistent bash/pwsh shell split, subagent tool filter, delegation policy, and
+sandboxed filesystem contracts to keep the
+Flash Max children limited to disjoint workspace code-edit leases. Its
+work-item protocol and orchestration are implemented independently; no Kimi
+or other additional third-party code was copied for this change.
+
+The current APEX v0.6.1 composition was subsequently compatibility-reviewed
+against DeepSeek Harness 0.1.1-rc.1 at commit
+528c682e061696f5a160f363f236ecbf53cbd006. Its read-only visual-review path
+uses the official direct vision model, native read_image tool, attachment
+storage, and image protocol contracts introduced by Harness commits
+4fa38d6a23bc2923a27ab4d375dde1b742ca830e and
+708a25a8a9362079185abb4f0c747cff4df74398. No image transport or third-party
+implementation was copied into APEX.
 
 DeepSeek and DeepSeek Harness are names of their respective owner. This
 community project is not affiliated with or endorsed by DeepSeek.

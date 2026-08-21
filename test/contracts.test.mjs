@@ -15,6 +15,9 @@ const apexComposition = join(projectRoot, 'presets', 'apex-v03', 'agent.cordis.y
 const apexV04Composition = join(projectRoot, 'presets', 'apex-v04', 'agent.cordis.yml')
 const apexV041Composition = join(projectRoot, 'presets', 'apex-v041', 'agent.cordis.yml')
 const apexV05Composition = join(projectRoot, 'presets', 'apex-v05', 'agent.cordis.yml')
+const apexV051Composition = join(projectRoot, 'presets', 'apex-v051', 'agent.cordis.yml')
+const apexV06Composition = join(projectRoot, 'presets', 'apex-v06', 'agent.cordis.yml')
+const apexV061Composition = join(projectRoot, 'presets', 'apex-v061', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
@@ -42,15 +45,15 @@ function packageNames(text) {
   return new Set([...text.matchAll(/^\s+name: '([^']+)'$/gm)].map((match) => match[1]))
 }
 
-async function missingStandardPackages(composition) {
+async function missingStandardPackages(composition, ignored = new Set()) {
   const expected = packageNames(await readFile(officialStandard, 'utf8'))
   const actual = packageNames(await readFile(composition, 'utf8'))
-  return [...expected].filter((packageName) => !actual.has(packageName))
+  return [...expected].filter((packageName) => !ignored.has(packageName) && !actual.has(packageName))
 }
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.5.0')
+  assert.equal(manifest.version, '0.6.1')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
@@ -58,6 +61,9 @@ test('package declares an official DSH bundle layer without install-time scripts
   assert.equal(manifest.files.includes('presets/apex-v04'), true)
   assert.equal(manifest.files.includes('presets/apex-v041'), true)
   assert.equal(manifest.files.includes('presets/apex-v05'), true)
+  assert.equal(manifest.files.includes('presets/apex-v051'), true)
+  assert.equal(manifest.files.includes('presets/apex-v06'), true)
+  assert.equal(manifest.files.includes('presets/apex-v061'), true)
   assert.match(
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
@@ -118,10 +124,95 @@ test('APEX v0.5 preserves Minimal and configures one bounded V4 Flash researcher
   assert.match(content, /enableRunInBackground: false/)
 })
 
-test('pins the POSIX first-request composition to the reviewed Minimal baseline', async () => {
+test('APEX v0.5.1 preserves Minimal and configures evidence-gated renewable research', async () => {
+  const content = await readFile(apexV051Composition, 'utf8')
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/execution-guard\.mjs/)
+  assert.match(content, /name: \.\/dev-tool-search\.mjs/)
+  assert.match(content, /name: \.\/apex-policy\.mjs/)
+  assert.match(content, /toolName: apex_research/)
+  assert.match(content, /agentOptions:\n\s+model: deepseek-v4-flash/)
+  assert.match(content, /toolFilter:\n\s+allow:\n\s+- web_search/)
+  assert.match(content, /maxDepth: 1/)
+  assert.match(content, /enableRunInBackground: false/)
+  assert.doesNotMatch(content, /Use at most three distinct web_search queries/)
+})
+
+test('APEX v0.6 preserves Minimal and configures bounded Flash Max implementation', async () => {
+  const content = await readFile(apexV06Composition, 'utf8')
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: \.\/tool-gate\.mjs/)
+  assert.match(content, /name: \.\/execution-guard\.mjs/)
+  assert.match(content, /name: \.\/dev-tool-search\.mjs/)
+  assert.match(content, /name: \.\/apex-policy\.mjs/)
+  assert.match(content, /toolName: apex_build/)
+  assert.match(content, /enableRunInBackground: false/)
+  assert.match(content, /provider: deepseek-official\n\s+model: deepseek-v4-flash/)
+  assert.match(content, /You are the APEX code implementer powered by DeepSeek V4 Flash Max/)
+  assert.match(content, /- bash\n\s+- str_replace_editor\n\s+- read\n\s+- write\n\s+- edit\n\s+- glob\n\s+- grep/)
+  assert.match(content, /toolName: apex_research/)
+  assert.match(content, /maxDepth: 1/)
+})
+
+test('APEX v0.6.1 configures vision-capable Flash Max workers with a scoped code persona', async () => {
+  const content = await readFile(apexV061Composition, 'utf8')
+  const policy = await readFile(join(projectRoot, 'presets', 'apex-v061', 'apex-policy.mjs'), 'utf8')
+  const builderModule = await readFile(join(projectRoot, 'presets', 'apex-v061', 'apex-build.mjs'), 'utf8')
+  const gateModule = await readFile(join(projectRoot, 'presets', 'apex-v061', 'tool-gate.mjs'), 'utf8')
+  const builder = content.slice(
+    content.indexOf('- id: tool-apex-build'),
+    content.indexOf('- id: tool-ask-user'),
+  )
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-bash-persistent'[\s\S]*disabled: !!js process\.platform === 'win32'/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-pwsh-persistent'[\s\S]*disabled: !!js process\.platform !== 'win32'/)
+  assert.doesNotMatch(content, /name: \.\/windows-bash\.mjs/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-fs-sandbox'/)
+  assert.doesNotMatch(content, /name: '@deepseek-ai\/dsh-fs-local'/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-subagent-control'/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-subagent-control\/list-agents'/)
+  assert.match(content, /name: \.\/worker-wait\.mjs/)
+  assert.match(content, /name: \.\/apex-continue\.mjs/)
+  assert.match(content, /name: \.\/apex-validation\.mjs/)
+  assert.match(content, /name: \.\/apex-vision\.mjs/)
+  assert.match(builder, /name: \.\/apex-build\.mjs/)
+  assert.doesNotMatch(builder, /\bpersona:/)
+  assert.match(builderModule, /name: 'apex_build'/)
+  assert.match(builderModule, /startContinuable/)
+  assert.match(gateModule, /FLASH_MAX_MODEL = 'deepseek-v4-flash-vision-exp'/)
+  assert.match(builderModule, /provider: FLASH_MAX_PROVIDER,\n\s+model: FLASH_MAX_MODEL/)
+  assert.match(builderModule, /persona: FLASH_CHILD_PERSONA/)
+  assert.match(builderModule, /'str_replace_editor',\n\s+'read',\n\s+'read_image',\n\s+'glob',\n\s+'grep'/)
+  assert.match(builderModule, /maxDepth: 1/)
+  const visionModule = await readFile(join(projectRoot, 'presets', 'apex-v061', 'apex-vision.mjs'), 'utf8')
+  assert.match(visionModule, /name: 'apex_inspect_image'/)
+  assert.match(visionModule, /model: FLASH_VISION_MODEL/)
+  assert.match(visionModule, /toolFilter: \{ allow: \['read_image'\] \}/)
+  assert.doesNotMatch(builderModule, /run_in_background/)
+  assert.doesNotMatch(content, /toolName: (?:apex_research|subagent|subagent_fork)/)
+  assert.doesNotMatch(content, /dsh-tool-(?:workflow|ralph)/)
+  assert.doesNotMatch(policy, /CHILD_WALL_TIME_MS|installChildWallBudget|20 \* 60 \* 1000/)
+  assert.match(policy, /profile="pro-led"/)
+  assert.match(policy, /Pro parent owns architecture, main integration surfaces/)
+  assert.match(policy, /path already mutated by Pro stays Pro-owned/)
+  assert.match(builderModule, /delegationPathConflictReason/)
+  assert.doesNotMatch(gateModule, /FLASH_MAX_MODEL = 'deepseek-v4-flash'/)
+  assert.doesNotMatch(policy, /must start apex_build/)
+  assert.match(builderModule, /whole-workspace \*\* lease is forbidden/)
+  assert.match(policy, /apex_validate_web/)
+})
+
+test('pins the rc.8 first-request composition to the reviewed Minimal baseline', async () => {
   const content = await readFile(posixComposition)
   const digest = createHash('sha256').update(content).digest('hex')
-  assert.equal(digest, 'cacb47f09a88985c8eb0906a62e6883205727a3c8db901807cb03f936b863cca')
+  assert.equal(digest, 'c952e72ff87cb09e6d2700dcf806c6584a67cf867adcd103ec822a6c538d4f87')
 })
 
 test(
@@ -208,6 +299,22 @@ test('APEX v0.4.1 tree remains byte-identical to the tested baseline', async () 
   }
 })
 
+test('APEX v0.5 tree remains byte-identical to the released control', async () => {
+  const expected = {
+    'agent.cordis.yml': '690e944b0cd3df93e0536ce6e5cbf878d074dd91ab15378fac0a8c49a598a8f7',
+    'apex-policy.mjs': 'e28de0e7bab4752ed485866d2f394966f4f3d69c20768dca93b95aefbd35b03e',
+    'dev-tool-search.mjs': '238612f2ef17817a2d73c54490a978b0859e3f4c84a494f713deab40407e94bb',
+    'execution-guard.mjs': '02cc8feabe336ce8bb03e211ad6e2cc08f3352e43d776d3226541312bf9e78e8',
+    'preset.yml': '08aada65514ffdf7a53cab3fee600ec08165fd55537fbb3eafc063480f5b57db',
+    'tool-gate.mjs': 'afe422084b39c39ef6c2605c0ff666b92b2dec30e1787e62bb4911cee828bd28',
+    'windows-bash.mjs': '55323a7fd5574572a9486f2fdd34285f347c2412cfff9cf4c6d49b0f43a92c36',
+  }
+  for (const [file, digest] of Object.entries(expected)) {
+    const content = await readFile(join(projectRoot, 'presets', 'apex-v05', file))
+    assert.equal(createHash('sha256').update(content).digest('hex'), digest, file)
+  }
+})
+
 test('APEX v0.4 reuses the released Windows fallback', async () => {
   assert.equal(
     await readFile(join(projectRoot, 'presets', 'apex-v04', 'windows-bash.mjs'), 'utf8'),
@@ -227,6 +334,27 @@ test('APEX v0.5 reuses the released Windows fallback', async () => {
     await readFile(join(projectRoot, 'presets', 'apex-v05', 'windows-bash.mjs'), 'utf8'),
     await readFile(join(projectRoot, 'presets', 'apex-v041', 'windows-bash.mjs'), 'utf8'),
   )
+})
+
+test('APEX v0.5.1 reuses the released Windows fallback', async () => {
+  assert.equal(
+    await readFile(join(projectRoot, 'presets', 'apex-v051', 'windows-bash.mjs'), 'utf8'),
+    await readFile(join(projectRoot, 'presets', 'apex-v05', 'windows-bash.mjs'), 'utf8'),
+  )
+})
+
+test('APEX v0.6 reuses the released Windows fallback', async () => {
+  assert.equal(
+    await readFile(join(projectRoot, 'presets', 'apex-v06', 'windows-bash.mjs'), 'utf8'),
+    await readFile(join(projectRoot, 'presets', 'apex-v051', 'windows-bash.mjs'), 'utf8'),
+  )
+})
+
+test('APEX v0.6.1 replaces the legacy Windows fallback with the rc.8 persistent shell', async () => {
+  const content = await readFile(apexV061Composition, 'utf8')
+  assert.equal(existsSync(join(projectRoot, 'presets', 'apex-v061', 'windows-bash.mjs')), false)
+  assert.match(content, /shellDialect: pwsh/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-pwsh-persistent'/)
 })
 
 test(
@@ -266,6 +394,38 @@ test(
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV05Composition), [])
+  },
+)
+
+test(
+  'APEX v0.5.1 carries every current Standard package row before request-time filtering',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    assert.deepEqual(await missingStandardPackages(apexV051Composition), [])
+  },
+)
+
+test(
+  'APEX v0.6 carries every current Standard package row before request-time filtering',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    assert.deepEqual(await missingStandardPackages(apexV06Composition), [])
+  },
+)
+
+test(
+  'APEX v0.6.1 carries Standard except deliberately removed delegation rows',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    const removed = new Set([
+      '@deepseek-ai/dsh-tool-subagent',
+      '@deepseek-ai/dsh-tool-subagent-control',
+      '@deepseek-ai/dsh-tool-subagent-control/list-agents',
+      '@deepseek-ai/dsh-workflow-worker-thread',
+      '@deepseek-ai/dsh-tool-workflow',
+      '@deepseek-ai/dsh-tool-ralph',
+    ])
+    assert.deepEqual(await missingStandardPackages(apexV061Composition, removed), [])
   },
 )
 
