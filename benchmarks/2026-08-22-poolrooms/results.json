@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "benchmarkId": "poolrooms-2026-08-22",
+  "pilot": true,
+  "repetitionsPerReferencedArtifact": 1,
+  "conditions": {
+    "provider": "deepseek-official",
+    "model": "deepseek-v4-pro",
+    "reasoningEffort": "max",
+    "permission": "workspace-write",
+    "harnessBaseline": "post-dsh-v0.1.0-rc.8",
+    "freshSessionPerCase": true,
+    "independentWorkspacePerCase": true,
+    "promptSha256": "a7ada83fd3c53bf16f6560405a2eebd0a15f33a8bba0f941f04636729288ad93",
+    "rubricSha256": "c9764eefb78ff7849d0c29e0750dae63fdb154526f33b1f0e1ac16ea53e8619d"
+  },
+  "cases": [
+    {
+      "preset": "minimal",
+      "label": "Official Minimal",
+      "runClass": "clean",
+      "score": 85,
+      "categoryScores": {
+        "runtimeAndBoundary": 8,
+        "proceduralSpace": 17,
+        "waterAndPbr": 20,
+        "lightingAndPost": 15,
+        "interactionAndAtmosphere": 10,
+        "performanceAndCompatibility": 9,
+        "engineeringReliability": 6
+      },
+      "browser": {
+        "passed": true,
+        "pageErrors": 0,
+        "fixedFpsSampleAvailable": false,
+        "streamingPathPassed": true,
+        "ssrToggleChangedOutput": true
+      }
+    },
+    {
+      "preset": "apex-v061",
+      "label": "APEX v0.6.1 latest artifact",
+      "runClass": "intervened",
+      "score": 83,
+      "categoryScores": {
+        "runtimeAndBoundary": 8,
+        "proceduralSpace": 16,
+        "waterAndPbr": 20,
+        "lightingAndPost": 12,
+        "interactionAndAtmosphere": 9,
+        "performanceAndCompatibility": 12,
+        "engineeringReliability": 6
+      },
+      "browser": {
+        "passed": true,
+        "browser": "Google Chrome",
+        "viewport": "1440x900",
+        "devicePixelRatio": 1,
+        "renderer": "WebGL2",
+        "sampleFps": 119.89,
+        "p95FrameMs": 9.3,
+        "consoleErrors": 0,
+        "pageErrors": 0,
+        "networkErrors": 0,
+        "httpErrors": 0
+      },
+      "intervention": {
+        "hostFpsSamplerFixedDuringSession": true,
+        "sessionResumedByEvaluator": true,
+        "codeWorkers": 0,
+        "readOnlyVisionChildren": 5
+      }
+    }
+  ],
+  "cleanPairedReference": {
+    "preset": "apex-v061",
+    "score": 74,
+    "scoreDeltaVsMinimal": -11,
+    "completed": true,
+    "hostRepairOrSessionResume": false
+  },
+  "comparisons": {
+    "latestArtifactScoreDeltaVsMinimal": -2,
+    "latestArtifactIsUnbiasedComparison": false,
+    "cleanReferenceScoreDeltaVsMinimal": -11
+  },
+  "interpretation": [
+    "The current evidence does not show stable artifact-quality improvement over official Minimal.",
+    "The 83-point APEX artifact is useful as a product-quality result but cannot be attributed solely to the plugin because the host validator was repaired and the session was resumed.",
+    "Repeated blind runs without host changes or evaluator intervention are required before making a performance claim."
+  ]
+}
