@@ -13,6 +13,7 @@ import {
   APEX_V051_PRESET_ID,
   APEX_V06_PRESET_ID,
   APEX_V061_PRESET_ID,
+  APEX_V062_PRESET_ID,
   installPresets,
   installPreset,
   PRESET_ID,
@@ -319,13 +320,43 @@ test('installs APEX v0.6.1 without changing any earlier preset', async (t) => {
   assert.equal(await exists(join(root, APEX_V061_PRESET_ID, 'apex-validation.mjs')), true)
 })
 
+test('installs APEX v0.6.2 without changing v0.6.1 or any earlier preset', async (t) => {
+  const root = await temporaryRoot(t)
+  const roster = fakeRoster(root)
+  const earlierIds = [
+    PRESET_ID,
+    APEX_PRESET_ID,
+    APEX_V04_PRESET_ID,
+    APEX_V041_PRESET_ID,
+    APEX_V05_PRESET_ID,
+    APEX_V051_PRESET_ID,
+    APEX_V06_PRESET_ID,
+    APEX_V061_PRESET_ID,
+  ]
+  for (const id of earlierIds) await installPreset(roster, 'linux', id)
+  const earlier = await Promise.all(
+    earlierIds.map((id) => readFile(join(root, id, 'agent.cordis.yml'), 'utf8')),
+  )
+
+  const result = await installPreset(roster, 'linux', APEX_V062_PRESET_ID)
+
+  assert.deepEqual(result, { status: 'installed', path: join(root, APEX_V062_PRESET_ID) })
+  assert.deepEqual(
+    await Promise.all(earlierIds.map((id) => readFile(join(root, id, 'agent.cordis.yml'), 'utf8'))),
+    earlier,
+  )
+  assert.equal(await exists(join(root, APEX_V062_PRESET_ID, 'apex-policy.mjs')), true)
+  assert.equal(await exists(join(root, APEX_V062_PRESET_ID, 'apex-validation.mjs')), true)
+  assert.equal(await exists(join(root, APEX_V062_PRESET_ID, 'apex-vision.mjs')), true)
+})
+
 test('bundle installation validates only active presets in order', async (t) => {
   const root = await temporaryRoot(t)
   const roster = fakeRoster(root)
   const results = await installPresets(roster, 'darwin')
 
   assert.deepEqual(results.map(({ presetId, status }) => ({ presetId, status })), [
-    { presetId: APEX_V061_PRESET_ID, status: 'installed' },
+    { presetId: APEX_V062_PRESET_ID, status: 'installed' },
   ])
   assert.deepEqual(roster.validations(), [...ACTIVE_PRESET_IDS])
   for (const id of [
@@ -336,6 +367,7 @@ test('bundle installation validates only active presets in order', async (t) => 
     APEX_V05_PRESET_ID,
     APEX_V051_PRESET_ID,
     APEX_V06_PRESET_ID,
+    APEX_V061_PRESET_ID,
   ]) {
     assert.equal(await exists(join(root, id)), false)
   }
@@ -491,11 +523,37 @@ test('v0.6.1 validation failure preserves every earlier preset', async (t) => {
   })
 
   await assert.rejects(
-    installPresets(roster, 'linux'),
+    installPreset(roster, 'linux', APEX_V061_PRESET_ID),
     /failed Harness mount validation: v0.6.1 mount rejected/,
   )
   for (const id of earlierIds) assert.equal(await exists(join(root, id)), true)
   assert.equal(await exists(join(root, APEX_V061_PRESET_ID)), false)
+})
+
+test('v0.6.2 validation failure preserves v0.6.1 and every earlier preset', async (t) => {
+  const root = await temporaryRoot(t)
+  const earlierIds = [
+    PRESET_ID,
+    APEX_PRESET_ID,
+    APEX_V04_PRESET_ID,
+    APEX_V041_PRESET_ID,
+    APEX_V05_PRESET_ID,
+    APEX_V051_PRESET_ID,
+    APEX_V06_PRESET_ID,
+    APEX_V061_PRESET_ID,
+  ]
+  for (const id of earlierIds) await installPreset(fakeRoster(root), 'linux', id)
+  const roster = fakeRoster(root, {
+    validationError: new Error('v0.6.2 mount rejected'),
+    validationPresetId: APEX_V062_PRESET_ID,
+  })
+
+  await assert.rejects(
+    installPresets(roster, 'linux'),
+    /failed Harness mount validation: v0.6.2 mount rejected/,
+  )
+  for (const id of earlierIds) assert.equal(await exists(join(root, id)), true)
+  assert.equal(await exists(join(root, APEX_V062_PRESET_ID)), false)
 })
 
 test('uses one conditionally composed v0.2 tree on every supported platform', () => {
@@ -527,6 +585,9 @@ test('resolves the self-contained APEX tree and rejects unknown bundled ids', ()
   assert.match(presetSourceFor('darwin', APEX_V061_PRESET_ID), /presets[/\\]apex-v061[/\\]?$/)
   assert.match(presetSourceFor('linux', APEX_V061_PRESET_ID), /presets[/\\]apex-v061[/\\]?$/)
   assert.match(presetSourceFor('win32', APEX_V061_PRESET_ID), /presets[/\\]apex-v061[/\\]?$/)
+  assert.match(presetSourceFor('darwin', APEX_V062_PRESET_ID), /presets[/\\]apex-v062[/\\]?$/)
+  assert.match(presetSourceFor('linux', APEX_V062_PRESET_ID), /presets[/\\]apex-v062[/\\]?$/)
+  assert.match(presetSourceFor('win32', APEX_V062_PRESET_ID), /presets[/\\]apex-v062[/\\]?$/)
   assert.throws(() => presetSourceFor('linux', 'unknown'), /unknown bundled preset/)
 })
 

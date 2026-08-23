@@ -18,6 +18,7 @@ const apexV05Composition = join(projectRoot, 'presets', 'apex-v05', 'agent.cordi
 const apexV051Composition = join(projectRoot, 'presets', 'apex-v051', 'agent.cordis.yml')
 const apexV06Composition = join(projectRoot, 'presets', 'apex-v06', 'agent.cordis.yml')
 const apexV061Composition = join(projectRoot, 'presets', 'apex-v061', 'agent.cordis.yml')
+const apexV062Composition = join(projectRoot, 'presets', 'apex-v062', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
@@ -53,7 +54,7 @@ async function missingStandardPackages(composition, ignored = new Set()) {
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.6.1')
+  assert.equal(manifest.version, '0.6.2')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
@@ -64,6 +65,7 @@ test('package declares an official DSH bundle layer without install-time scripts
   assert.equal(manifest.files.includes('presets/apex-v051'), true)
   assert.equal(manifest.files.includes('presets/apex-v06'), true)
   assert.equal(manifest.files.includes('presets/apex-v061'), true)
+  assert.equal(manifest.files.includes('presets/apex-v062'), true)
   assert.match(
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
@@ -207,6 +209,24 @@ test('APEX v0.6.1 configures vision-capable Flash Max workers with a scoped code
   assert.doesNotMatch(policy, /must start apex_build/)
   assert.match(builderModule, /whole-workspace \*\* lease is forbidden/)
   assert.match(policy, /apex_validate_web/)
+})
+
+test('APEX v0.6.2 preserves Minimal while making optional capability packs independent', async () => {
+  const content = await readFile(apexV062Composition, 'utf8')
+  const policy = await readFile(join(projectRoot, 'presets', 'apex-v062', 'apex-policy.mjs'), 'utf8')
+  const broker = await readFile(join(projectRoot, 'presets', 'apex-v062', 'dev-tool-search.mjs'), 'utf8')
+  const gate = await readFile(join(projectRoot, 'presets', 'apex-v062', 'tool-gate.mjs'), 'utf8')
+
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.match(content, /name: '\@deepseek-ai\/dsh-tool-bash-persistent'/)
+  assert.match(content, /name: '\@deepseek-ai\/dsh-tool-pwsh-persistent'/)
+  assert.match(policy, /task-specific invariants/)
+  assert.match(policy, /Work directly by default/)
+  assert.doesNotMatch(policy, /apex_validate_web|apex_inspect_image|must start apex_build/i)
+  assert.doesNotMatch(broker, /researchGap|nextWebQuery|approvedWebQueries/)
+  assert.doesNotMatch(gate, /ROOT_SHELL_HARD_LIMIT|shellBudget|capability card/i)
 })
 
 test('pins the rc.8 first-request composition to the reviewed Minimal baseline', async () => {
@@ -357,6 +377,14 @@ test('APEX v0.6.1 replaces the legacy Windows fallback with the rc.8 persistent 
   assert.match(content, /name: '@deepseek-ai\/dsh-tool-pwsh-persistent'/)
 })
 
+test('APEX v0.6.2 keeps the cross-platform persistent shell composition', async () => {
+  const content = await readFile(apexV062Composition, 'utf8')
+  assert.equal(existsSync(join(projectRoot, 'presets', 'apex-v062', 'windows-bash.mjs')), false)
+  assert.match(content, /shellDialect: pwsh/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-bash-persistent'/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-pwsh-persistent'/)
+})
+
 test(
   'v0.2 carries every current Standard package row before request-time filtering',
   { skip: !existsSync(officialStandard) },
@@ -426,6 +454,22 @@ test(
       '@deepseek-ai/dsh-tool-ralph',
     ])
     assert.deepEqual(await missingStandardPackages(apexV061Composition, removed), [])
+  },
+)
+
+test(
+  'APEX v0.6.2 carries Standard except deliberately removed delegation rows',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    const removed = new Set([
+      '@deepseek-ai/dsh-tool-subagent',
+      '@deepseek-ai/dsh-tool-subagent-control',
+      '@deepseek-ai/dsh-tool-subagent-control/list-agents',
+      '@deepseek-ai/dsh-workflow-worker-thread',
+      '@deepseek-ai/dsh-tool-workflow',
+      '@deepseek-ai/dsh-tool-ralph',
+    ])
+    assert.deepEqual(await missingStandardPackages(apexV062Composition, removed), [])
   },
 )
 

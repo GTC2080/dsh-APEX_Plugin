@@ -1,22 +1,28 @@
 # DSH APEX Plugin
 
-APEX 是一个 DeepSeek Harness 实验 preset。每个真实用户任务先保持官方 Minimal persona 与双工具，
-并由宿主在首请求声明当前 Workspace；成功使用一次 Minimal 工具后只增加一个按需能力入口和一张一次性短能力卡。Pro 默认直接完成代码设计与实现，始终保留
-编辑器；同一个具备视觉能力的 DeepSeek V4 Flash Max 只在 Pro 明确选择时承担真正独立、路径有界的代码模块，
-或对 Workspace 内截图做只读质量复核。APEX v0.6.1 不再使用纯文本 `deepseek-v4-flash` 路由。
+APEX 是一个 DeepSeek Harness 实验 preset。它保留官方 Minimal persona 与双工具首请求，
+并由宿主在模型第一次行动前给出正确 Workspace。成功完成一次 Minimal 工具动作后，
+默认只增加一个带精简名称目录的按需能力入口，不展开可选工具 schema；研究、代码协作、Web 运行验收、视觉复核和持久状态
+是彼此独立的可选能力，只在出现具体证据缺口时解锁。
 
-当前版本是 **APEX v0.6.1**。本次修订取消 Worker-first、父级第 8 步强制调度和 Worker 启动后移除
-Pro editor 的做法，禁止 `**` 整个 Workspace 租约，并把等待、续作、接管等控制工具限制在对应生命周期
-状态。Pro 可以先确定架构并实现主集成面，但只能把自己尚未修改的独立路径租给 Worker；`apex_wait` 可从
-子会话持久日志恢复已经错过的结束事件。根 Shell 使用两级无编辑进展预算，Flash 使用基于重复检查证据的
-停滞交接而非固定步骤或墙钟强杀。Flash 首请求保持极小 persona 与双工具形状。结构合同只能证明机制按设计工作，不能
-替代真实模型的重复对照实验，也不代表已经证明它在所有任务上优于官方 Minimal。
+当前开发版本是 **APEX v0.6.2（通用核心）**。它不使用任务关键词分类，不预设任务必须
+委派、搜索或做浏览器验证，也不再用全局 Shell 次数、安装前置、重复查询与固定研究租约
+约束所有任务。Pro 默认直接工作，并先建立当前任务自己的不变量与完成证据。
+当关键领域判断无法由 Workspace 证据或已检查不变量确定时，Pro 会明确一个证据缺口，按需发现研究能力，
+优先使用一手资料，并把结论转化为实现约束或测试；普通路径查找、本地代码检查和常规调试不触发研究。
+如果尚未开始实现且连续十二次成功调用都仍在只读调研，宿主只给出一次非阻断的收敛提醒：仍有明确
+API、算法或领域事实缺口时可以继续查，否则先落下最小端到端实现。它不是研究次数上限，也不会拒绝工具。
+验收项只来自用户或项目明确要求、本地合同以及已经观察到的具体缺陷。用户明确给出可量化要求时，
+Pro 选择能直接覆盖相关状态的最低成本证据；插件不会自行添加 FPS、静止/移动路径或其他领域 Benchmark。
+同一份仍有效的证据可以关闭它直接证明的多个检查，成品未修改时不会为了“final”重复运行相同验证。
+v0.6.1 已以字节级摘要锁定，作为工程任务特化实验保留，不再就地修改。
 
 ## 可选 preset
 
 | Preset id | 界面名称 | 用途 |
 | --- | --- | --- |
-| `apex-v061` | APEX v0.6.1（Pro 主导按需协作） | Minimal 直接路径 + 视觉版 Flash Max 有界代码 Worker / 只读复核 |
+| `apex-v062` | APEX v0.6.2（通用核心） | Minimal 直接路径 + 互相独立的按需能力包 |
+| `apex-v061` | APEX v0.6.1（冻结实验） | 工程特化的 Pro / 视觉版 Flash Max 有界协作对照 |
 | `apex-v06` | APEX v0.6（实验） | Minimal 锚定 + Pro 主导验收 + Flash Max 有界实现与研究 |
 | `apex-v051` | APEX v0.5.1（实验） | 极薄晋级策略 + 可续租直搜 + Pro 评审后的可续轮 Flash 研究 |
 | `apex-v05` | APEX v0.5（实验） | 持久任务状态 + 有固定上限的 Pro/Flash 定向研究对照 |
@@ -25,10 +31,41 @@ Pro editor 的做法，禁止 `**` 整个 Workspace 租约，并把等待、续�
 | `apex-v03` | APEX v0.3（实验） | Minimal 锚定 + 一次性策略 + 按需 Standard 工具 |
 | `minimal-max-v2` | Minimal Max v0.2（实验） | 不含 APEX 策略的稳定对照组 |
 
-安装 v0.6.1 不会覆盖或改写任何早期 preset。包名继续使用 `dsh-minimal-max`，以保持现有
+安装 v0.6.2 不会覆盖或改写任何早期 preset。包名继续使用 `dsh-minimal-max`，以保持现有
 DSH profile 的插件升级路径稳定；界面产品名称使用 APEX。
 
-## APEX v0.6.1 如何工作
+## APEX v0.6.2 如何工作
+
+```text
+每条真人 user/message
+  -> 请求 1：官方 Minimal persona + 平台持久 Shell + str_replace_editor
+     + 一条不含能力名的宿主 Workspace 提示
+  -> 只有成功的 Minimal 工具结果才晋级
+  -> 请求 2 起：一次性精简能力目录 + Minimal 双工具 + dev_tool_search（不展开可选 schema）
+  -> Pro 默认直接完成任务，根据任务本身建立不变量、证据缺口与完成条件
+  -> 只为明确要求、项目合同或真实缺陷建立验收项；可量化要求使用最低成本的直接证据
+  -> 出现具体缺口时：单独搜索并解锁所需能力，不连带暴露其他 schema
+  -> 代码 Worker、Web 验收、视觉复核、研究、持久状态互不代替对方的证据
+  -> 下一条真人 user/message 清除临时解锁，回到 Minimal 锚点
+```
+
+v0.6.2 的宿主守卫只保留通用安全与所有权边界：Workspace 内写入、Worker 非重叠路径租约、
+禁止按进程名宽泛杀死、禁止自动下载浏览器二进制与修改系统设置。任务专属的安装、测试、
+性能与验收预算由 Pro 结合仓库规范和真实证据决定，不由插件用固定次数代替。
+POSIX Pro 可以直接使用官方 persistent Bash 已支持的闭合 heredoc；带引号的简单 `cat` / `tee`
+正文按字面数据处理，重定向目标必须位于 Workspace 或系统临时目录的后代。缺失结束符会在派发前失败，
+`$HOME`、`../`、外部 symlink 和可执行 heredoc 中真实文件 API 的其他外部目标仍由 Workspace 守卫拒绝；
+Python / Node 正文里与文件操作无关的字符串、注释和嵌入代码不会被当成 shell 路径。
+带前置 `cd` / `mkdir` 的闭合 heredoc 同样按实际命令与文件操作检查；普通非执行 `sed` 替换程序里的
+斜杠文本不会被误当成文件路径，但 `sed` 的读写文件命令仍会被拒绝越界。
+长文件创建可用一次 heredoc，小范围修改继续优先使用 editor，不需要改写为 Python 绕行。
+`str_replace_editor` 的 schema 与首请求形状保持不变；宿主会在 schema 校验前删除五个已知可选字段的
+`null` 占位，但保留必填字段、未知字段和所有非 `null` 非法值继续校验。其他参数类型、未读先改、
+EOF 范围或重复创建错误仍收敛为一条命令特定的重试形状，避免模型围绕同一个协议错误连续试探。
+`apex_validate_web` 的合同摘要会递归排序对象键；数组与值保持原顺序，因此等价的交互对象键顺序不会
+消耗一次调用，而真实的 selector、交互、时序、视口或 FPS 变化仍被拒绝。
+
+## 冻结实验：APEX v0.6.1
 
 ```text
 每条真人 user/message
@@ -85,15 +122,18 @@ editor、按需工具、最终交付和任务本身不受总步骤或墙钟强�
 
 ### Workspace 访问边界
 
-APEX v0.6.1 默认只允许模型访问当前会话由用户选定的 Workspace。只有当前最新一条真人消息中
+APEX v0.6.2 默认只允许模型访问当前会话由用户选定的 Workspace。只有当前最新一条真人消息中
 逐字写出的非文件系统根目录绝对文件或目录路径，才会成为该任务的一次性 Workspace 外只读授权：可以通过
 `read`、`read_image`、`glob`、`grep` 或 `str_replace_editor view` 查看该路径及其后代；下一条真人
 消息会重新计算授权。模型回复、工具输出、较早任务、历史测试、相邻 Workspace、Home 目录和搜索中
 偶然发现的路径都不能扩大授权。
 
-外部授权不包含写权限，`write`、`edit` 和 editor 的修改命令始终只能作用于当前 Workspace；Flash
-Worker 还要同时满足自己的非重叠写入租约。`bash` / `pwsh` 保持 Workspace-only，不能借外部只读
-授权执行命令。守卫会规范化路径并检查已有 symlink 祖先，阻止从 Workspace 内的链接跳到外部。
+外部授权不包含写权限。Pro 的 shell 可以把解析后的系统临时目录根作为工作目录，文件与 shell 工具也可访问其
+后代，供一次性脚本和中间数据使用；临时目录根本身仍不能被删除、覆盖或作为最终文件目标，最终交付、截图与
+验收根目录必须位于 Workspace。进入临时根后，`rm -rf .`、`rm -rf *` 等整目录相对清理同样会被拒绝；明确的
+临时子路径仍可删除。临时文件的回收由操作系统负责，APEX 不承诺立即清理。Flash Worker 仍只能修改自己的
+Workspace 非重叠租约。`bash` / `pwsh` 不能借外部只读授权执行命令。守卫会规范化路径并检查已有
+symlink 祖先，阻止从 Workspace 或临时目录内的既有链接跳到其他位置。
 Workspace 根目录在第一次模型动作前已经给出，shell 也直接从该目录启动；越界拒绝保持通用错误，
 不再把“报错后补发路径”当作发现机制。
 这是针对模型工具调用与自主越界搜索的执行策略，不是用来对抗恶意 shell 程序的独立机密计算沙箱。
@@ -162,10 +202,11 @@ Worker 租用的 Workspace 路径可以继续编辑；租约内路径只有在 W
 任意 Bash 输出不再单独算作续作前的复核证据。Pro 先把验收项映射到证据并合并同类检查；对无依赖的
 小型单文件任务，初始预算是一遍租约文件读取和一个最小静态或运行检查。只有任务本身涉及相关风险，或
 新证据暴露缺口时，才扩展到调用链、边界、状态/资源清理、用户路径和性能。仅仅“可以运行”不算验收完成；
-确认具体缺陷后，用一次 `apex_continue` 续交同一个 Worker。每个必测断言在 `apex_state.checks` 中只有
-`pending / failed / passed` 三态；新验证必须关闭 pending 项或重验 failed 项，不会因为“还能再看一下”重开 passed 项。
-同一个真人任务的 Web 运行验收固定为同一个检查和同一份验收合同：一次 baseline、失败后至多一次
-regression、修复后一次 final。换 `check_id` 或降低交互、时序、视口、FPS 等阈值都不能重置预算；
+确认具体缺陷后，用一次 `apex_continue` 续交同一个 Worker。`apex_state` 只在长任务可能跨越上下文压缩时
+保存任务级不变量与验收项，不再是 Web 验证的前置工具调用。同一个真人任务的 Web 运行验收由
+第一次 baseline 自行绑定同一个检查和同一份验收合同：一次 baseline、失败后至多一次
+regression；已经通过且成品未修改时直接复用证据，只有后续成功代码修改或修复失败 regression 后才运行 final。
+换 `check_id` 或降低交互、时序、视口、FPS 等阈值都不能重置预算；
 final 新发现的确定性页面异常、同一合同下的 FPS 门槛失败，或对最新一次通过截图给出的结构化
 `repair` 视觉结论，都可在成功代码修复后开启 `repair-proof`。默认允许两轮；只有紧邻上一轮通过运行、
 减少缺陷数量，或从 application-runtime 收敛到较低严重度的 performance failure 时，才开放第三轮。
@@ -189,7 +230,11 @@ Pro 承担时也可接管。接管要求当前所有 Worker 已结算，结果�
 - 按需检查 selector / Canvas，派发有限键盘交互，对 `requestAnimationFrame` 做短采样，并可写入一张新的 Workspace 内 PNG；
 - 无论成功、失败、超时还是取消，都关闭自己的 server、精确终止自己的 browser 进程树，并删除自己的临时 profile。
 
-整个真人任务只允许一次 `baseline`；只有失败或阻塞后才能使用一次 `regression`，之后只剩一次 `final`。
+整个真人任务只允许一次 `baseline`；只有失败或阻塞后才能使用一次 `regression`。已经通过的运行证据在成品
+未修改时保持有效，不重复执行 `final`；后续成功修改使该证据失效，或失败 regression 已完成修复时，才使用一次 `final`。
+第一次 baseline 的结果元数据会直接绑定 `check_id`、断言、目录、交互、时序、视口与 FPS 门槛，
+不要求模型先用 `apex_state` 重复登记这份合同。失败 baseline 后只有出现一次成功实现修改才能进入 regression；
+已通过且没有后续实现修改时，宿主会要求复用现有证据，不允许用 final 无意义地重验。
 final 之后，确定性 application-runtime failure、同一合同下的 FPS 门槛失败，或绑定最新通过截图的结构化
 `repair` 视觉结论，在每次成功修复后默认可使用两轮 `repair-proof`。第三轮只有在紧邻上一轮通过运行、
 缺陷分数下降或故障从 application-runtime 收敛到 performance 时开放，总修复复证最多三轮；同一运行时
@@ -238,8 +283,8 @@ v0.6.1 不提供 `apex_research`、通用 `subagent`、`subagent_fork`、`workfl
 - Node.js `>=22.19.0`
 - 与固定基线兼容的 DeepSeek Harness
 
-当前审查基线是 DeepSeek Harness `0.1.1-rc.1`，commit
-`528c682e061696f5a160f363f236ecbf53cbd006`。v0.6.1 的 Minimal 双工具锚点仍与 rc.8
+当前本地兼容性审查对象是 DeepSeek Harness `0.1.1-rc.1`，commit
+`6dc6b4f9762901ca04931fdcbb25db418fadf9ed`。v0.6.2 的 Minimal 双工具锚点仍与 rc.8
 `141eb6fef83422698aef7a981029e843e8161534` 逐字节一致。完整来源与固定 commit 见
 [NOTICE](./NOTICE)。
 
@@ -261,11 +306,11 @@ pnpm dsh plugin --profile web add /path/to/dsh-APEX_Plugin
 pnpm dsh web
 ```
 
-默认安装只维护当前实验版 `apex-v061`；正式对照使用 Harness 内置的官方 `minimal`。历史源码仍
+默认安装只维护当前开发版 `apex-v062`；正式对照使用 Harness 内置的官方 `minimal`。历史源码仍
 保留在插件包中用于兼容性与回归检查，但不会再自动安装或把已卸载旧版本重新装回。最新一项日志为：
 
 ```text
-[dsh-apex] installed and mount-validated preset "apex-v061"
+[dsh-apex] installed and mount-validated preset "apex-v062"
 ```
 
 相同内容已存在时，`installed` 会显示为 `existing`。安装器只创建缺失目录，不覆盖同名用户
@@ -278,11 +323,11 @@ dsh --profile web --dump-config
 ```
 
 输出应包含 `minimal-max-preset-installer` 和 `dsh-minimal-max`。随后在 Web UI 新建会话并
-选择“APEX v0.6.1（Pro 主导按需协作）”。已有会话不会自动切换 preset。
+选择“APEX v0.6.2（通用核心）”。已有会话不会自动切换 preset。
 
-### 安全进程清理
+### 安全与 Workspace 边界
 
-v0.6.1 在工具实际执行前拒绝已知宽泛终止形式，包括 `pkill`、`killall`、
+v0.6.2 在工具实际执行前拒绝已知宽泛终止形式，包括 `pkill`、`killall`、
 `taskkill /IM`、`Stop-Process -Name`，以及同一命令中的 `pgrep | kill` 和
 `Get-Process | Stop-Process`。应记录当前任务启动的 PID，并使用：
 
@@ -293,33 +338,21 @@ kill -TERM 12345
 Windows 对应使用 `taskkill /PID 12345` 或 `Stop-Process -Id 12345`。Guard 不增加首请求
 prompt 或工具 schema。
 
-持久 Bash 中的裸 `&` 后台运算符会被拒绝，避免后台输出破坏完成标记或留下无法归属的服务。
-已构建的静态 Web 项目应直接用 `apex_validate_web`，不再临时编写 server/browser driver、不安装 Playwright / Selenium，
-也不修改系统浏览器自动化设置。只有它不支持的动态服务才需自己组织有限 driver。
-`playwright install`、`puppeteer browsers install` 等浏览器二进制下载会被拒绝；宿主验证器直接复用系统浏览器，
-该受控宿主访问不放宽模型对 Workspace 外文件的通用读写边界。
-
-直接运行 Chrome、Chromium 或 Firefox 的 headless smoke test 时，还必须使用独立于 Harness 工具
-超时的进程 deadline。POSIX 可用系统 `timeout` / `gtimeout`，也可用前台
-`subprocess.run(..., timeout=N)`；PowerShell 应使用 `Start-Process -PassThru`、
-`WaitForExit(milliseconds)` 和 `Stop-Process -Id`。缺少这层保护的无头浏览器命令会在执行前被拒绝。
-任一 shell 命令形状首次超时后，同一真人任务中不得通过只换参数再试同形操作。
-
-任何依赖安装前，Pro 必须先成功读取现有 `package.json`、lockfile、`pyproject.toml` 或 requirements
-文件；新建的无构建/单文件项目不能为了验证临时制造包环境。同一真人任务中，依赖清单没有发生可验证
-修改时，同一条依赖安装命令只允许成功派发一次。Flash Worker 不能安装依赖、抓取远程源码或运行
-headless browser；普通本地模块检查不受影响。
-
-持久 Bash 中的所有 heredoc 都会在执行前被拒绝；短检查应使用现有测试命令或 `node -e` /
-`python -c`，避免多行终止符让完成标记失步并消耗整个工具超时。Shell 也不能通过重定向、`tee`、Python/Node 文件写入 API、PowerShell
-`Set-Content` / `Out-File` 等常见路径直接创建或修改源码、HTML、样式、文档和项目配置；这些写入
-必须使用 `str_replace_editor`。同一真人任务中成功获取过的完全相同远程 URL 也会被拒绝再次获取，
-应复用已有证据，并在扩展研究前先修复和复测已经确认的缺陷。路径扫描会忽略 HTML/XML
-结束标签，`</script>` 不再被误识别成 Workspace 外的 `/script`。
+`playwright install`、`playwright@<version> install`、`puppeteer browsers install` 等浏览器二进制下载会被拒绝；
+宿主验证器复用系统已有浏览器。当本任务已经成功写入 HTML，Pro 随后开始探测或安装
+Playwright、Puppeteer、jsdom、Selenium、Canvas 仿真依赖，或自行搜索系统浏览器路径时，`apex_validate_web`
+已经随成功 HTML 写入自动出现在下一请求，守卫会要求直接使用它。这条规则由真实工具轨迹触发，不读取用户
+提示词关键词，也不会把浏览器工具常驻到非 Web 任务。默认交付写入仍发生在当前 Workspace；系统临时目录及后代
+只用于可丢弃中间数据，用户在最新真人消息中明确给出的其他外部绝对路径只产生一次性只读授权。背景进程、依赖安装、Shell 编写与验收轮数不再被
+插件的全局工程启发式一刀切限制；它们应遵循当前项目规范与任务证据。
+Shell 路径检查会先排除网络 URL、脚本注释和语言运算符，再检查真正出现的路径；Workspace 内相对文件
+参数与系统临时目录后代可以正常使用，`/Applications`、`../`、Home 别名和可执行脚本中的其他真实外部文件参数仍会被拒绝。
 
 ## 使用 Standard 工具
 
-通常只需描述任务。第一轮成功工具动作之后，模型会看到 `dev_tool_search` 和一次性短能力卡。知道精确工具名时，
+通常只需描述任务。第一轮成功工具动作之后，模型会收到一次精简能力目录消息，并看到
+`dev_tool_search`；目录列出 APEX、研究和常用 Standard 工具的准确名称与单句触发条件，但不会展开任何
+可选工具 schema。知道精确工具名时，
 一次调用即可解锁，例如：
 
 ```json
@@ -331,6 +364,10 @@ headless browser；普通本地模块检查不受影响。
 ```json
 {"query":"web"}
 ```
+
+若非空查询没有词法命中（例如查询语言与英文工具描述不同），broker 会返回最多 20 个稳定排序的
+allowlist 候选摘要，但不会自动解锁任何能力；模型仍须从结果中准确选择一个名称再次提交。该回退不读取
+任务关键词、不增加额外模型调用，也不会把候选 schema 常驻到后续请求。
 
 然后每次只解锁一个此前发现的名称：
 
@@ -348,9 +385,9 @@ headless browser；普通本地模块检查不受影响。
 从下一条模型请求生效，持续到下一条真人用户消息或本次 compaction。临时注册但不在当前
 Standard 白名单中的外部工具不会被发现或解锁。
 
-专用代码实现工具 `apex_build` 不走模糊搜索再解锁的两步流程；短能力卡会给出精确名称，模型以
-`{"query":"apex_build"}` 一次调用即可解锁。通常无需手动调用 `apex_state` 或 `apex_build`；主模型会根据具体
-任务需要使用。若需检查当前状态，可在晋级后调用 `apex_state` 的 `get` 动作。
+知道可选能力的精确名称时可一次解锁；不知道时先用中性需求搜索候选。插件不会因为任务看起来像
+Web 开发、物理模拟或大型工程就自动解锁或强制使用它们。
+精确命中或提交已发现名称后，结果会直接要求下一请求使用目标工具，不再同时给出“再次搜索”的矛盾提示。
 
 视觉复核同样有精确名称，截图位于 Workspace 后可直接解锁：
 
@@ -359,12 +396,16 @@ Standard 白名单中的外部工具不会被发现或解锁。
 ```
 
 随后由 Pro 提交相对图片路径和一个聚焦问题；视觉子任务只返回证据，不修改文件。
+如果图片来自 `apex_validate_web`，视觉复核只接受最新一轮宿主截图，并同时校验截图 SHA-256 与截图后
+是否出现成功实现修改；任何一项变化都必须按验收器返回的合法下一模式生成新截图。每次 Web 验收结果会
+返回当前合法的下一模式，以及 baseline、regression、final、repair-proof 和环境复试的剩余预算；`final`
+已使用但修复证据已满足时，会直接给出可复制的 `"mode":"repair-proof"` 形状。
 
 ## 跨平台状态
 
 - macOS / Linux：复用 Harness 的 persistent Bash 与同一份 preset composition。
 - Windows：复用 Minimal 的 persistent PowerShell，首请求工具名为 `pwsh`，无需 Git Bash fallback。
-- Guard：同时识别 POSIX/Windows 宽泛终止命令，并以同一持久事件算法管理研究租约。
+- Guard：同时识别 POSIX/Windows 宽泛终止命令，不对根会话施加固定 Shell 或研究次数。
 - Vision：三端都复用 Harness 原生 `read_image` 与官方 Vision 路由；Windows 仍需单独做原生端到端验证。
 - CI：`cross-platform.yml` 会在 Ubuntu、macOS、Windows 上运行完整 `npm run check`。
 
@@ -383,23 +424,17 @@ npm run check
 验证覆盖：
 
 1. 官方 rc.8 Minimal composition 与固定 commit 逐字节一致；历史版本继续锁定各自旧基线。
-2. v0.6.1 根会话首请求使用官方 Minimal system prompt 与双工具，同时保留一条不含能力名的 Workspace 提示；
-   晋级后才增加 broker 与一次性短能力卡。
-3. `apex_state` 的输入边界、任务切换清零、跨 compaction 恢复、停滞提示和三态验收清单。
-4. 第三次直搜后的逐查询租约、未使用租约阻塞、重复查询拒绝和超过旧上限后的继续续租。
-5. 成功 Minimal 工具结果才晋级、短能力卡按 epoch 只出现一次、8/16 次无编辑 shell 探索的两级预算，
-   broker 使用后预算仍生效，以及 `apex_build` / `apex_state` / `apex_validate_web` / `apex_inspect_image` 的精确按需解锁。
-6. 代码与视觉子任务都只路由到官方 `deepseek-v4-flash-vision-exp` 并覆写为 Max；代码 Worker 固定为
-   `workspace-write`，Vision 固定为 `read-only` 且只获得 `read_image`，两者都过滤无关自动上下文。
-7. 结构化工作项编译、非重叠写入租约、每步/每任务 Worker 上限与越界编辑拒绝。
-8. 七个必填工作项字段、`**` 整个 Workspace 租约拒绝、Pro 已编辑路径的租约冲突拒绝、未触碰独立路径仍可委派，以及 Pro 默认直接实现、不存在强制调度检查点。
-9. Worker 持久化停止/用量/写入证据、错过 settlement 后的持久日志恢复、按生命周期显示的等待/续作/接管工具、Pro editor 常驻、租约内并发写拒绝和同一 Worker 接管后禁止再续作。
-10. Flash 子任务无固定墙钟或绝对步骤上限；只有 12 次成功检查且最近 6 次重复旧证据时才触发宿主交接。
-11. Pro 的需求映射、运行性、调用链、边界、资源生命周期、体验与性能复核职责。
-12. 当前 Workspace 默认边界、最新真人消息的外部只读授权、任务切换清零、HTML 结束标签排除、外部写入拒绝，以及 POSIX / Windows 路径处理与 symlink 越界拒绝。
-13. `apex_validate_web` 的 Workspace 路径、基线/失败回归/final、默认两轮且条件式扩展到三轮的 repair-proof、独立一次环境复试、运行/FPS/结构化视觉故障分类、loopback 服务、无浏览器降级和精确清理。
-14. 宽泛终止、系统设置、裸 Bash 后台、超时命令形状重试、无 manifest 安装、带全局参数安装、重复安装、远程 URL 去重与 loopback 豁免。
-15. macOS、Linux 使用 persistent Bash，Windows 使用 Minimal persistent PowerShell 的 composition contract。
+2. v0.6.1 整树摘要不变，v0.6.2 只作为新 preset 增加。
+3. v0.6.2 根会话首请求使用 Minimal system prompt 与双工具，同时保留一条不含能力名的 Workspace 提示。
+4. 只有成功 Minimal 工具结果才晋级；晋级后注入一次精简能力目录并只常驻 broker，不发送可选工具 schema。
+5. 研究、代码 Worker、Web 验收、视觉复核和状态工具可独立解锁，不会相互带出 schema。
+6. 根会话可按任务需要使用后台进程、Shell 编写、依赖安装和重复研究；连续只读调研只触发一次非阻断收敛提醒。
+7. Workspace 路径扫描不会把网络 URL、脚本注释或 `//` 运算符误判成外部文件；shell 可进入系统临时目录根并使用其后代，但删除或覆盖临时根及其他真实越界路径仍会被阻止。
+8. 精确能力解锁不会要求重复搜索；成功 HTML 写入会直接暴露 Web 验收，验收结果会返回下一合法模式与剩余预算。
+9. Web 验收截图通过最新轮次、实现代次和哈希三重绑定后才可进入视觉复核。
+10. Workspace 外部只读授权、symlink 越界、Worker 租约、宽泛杀进程、浏览器下载和系统设置防护仍有回归验证。
+11. 代码 Worker、视觉子任务和宿主 Web 验收的成熟能力包保留原有合同，但不属于默认轨迹。
+12. macOS、Linux 使用 persistent Bash，Windows 使用 Minimal persistent PowerShell 的 composition contract。
 
 如果插件与 Harness 不在默认相邻目录，可指定 checkout：
 
@@ -413,20 +448,20 @@ DSH_CHECKOUT=/path/to/deepseek-harness npm test
 
 ```sh
 TEST_ROOT=/path/to/test-directory
-TEST_HOME="$(mktemp -d "$TEST_ROOT/apex-v0.6.1-home.XXXXXX")"
+TEST_HOME="$(mktemp -d "$TEST_ROOT/apex-v0.6.2-home.XXXXXX")"
 DSH_HOME="$TEST_HOME" dsh plugin --profile web add /path/to/dsh-APEX_Plugin
 DSH_HOME="$TEST_HOME" dsh --profile web --dump-config
 DSH_HOME="$TEST_HOME" dsh web --port 0
 ```
 
-检查 `.agent-presets/apex-v061/` 是否包含 composition、策略、Guard 和全部跨平台运行模块，并在
+检查 `.agent-presets/apex-v062/` 是否包含 composition、策略、Guard 和全部跨平台运行模块，并在
 新会话中确认：
 
 ```text
 1. 每条真人任务首次请求：可信 Workspace 提示 + 平台持久化 shell（`bash` 或 `pwsh`）+ str_replace_editor
 2. 失败工具调用或纯 assistant/message 后：仍是 Minimal 双工具
-3. 首次成功工具结果后：平台持久化 shell + str_replace_editor + dev_tool_search，并显示一次精确查询卡
-4. 精确名称可一次激活；模糊查询需先列候选；Pro 已写路径不能租给 apex_build，未触碰独立路径仍可启动
+3. 首次成功工具结果后：平台持久化 shell + str_replace_editor + dev_tool_search；仅显示精简名称目录，不展开可选 schema
+4. 唯一匹配或精确名称可一次激活；歧义查询需先列候选；各可选能力包可独立解锁
 5. Worker 运行和未取证结算状态只出现等待工具；取证后才出现续作/接管工具；Pro editor 始终存在
 6. 下一条真人任务或 compaction 后：重新回到 Minimal 锚点
 ```
@@ -436,11 +471,11 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 结构正确与模型能力是两个独立验收层。建议使用同题盲测：
 
 - A：官方 `minimal`
-- B：`apex-v061`
+- B：`apex-v062`
 
 保持同一模型端点、版本、推理强度、max tokens、题目、workspace 初始状态和权限。每组使用全新
 会话并至少重复 10 次，记录完成率、硬性需求覆盖率、工具参数合法率、返工次数、输入/输出 token、
-延迟、Flash 编辑次数、Pro 审查后发现的缺陷和修复轮数。比较 A/B 判断 v0.6.1 的净影响与额外
+延迟、Flash 编辑次数、Pro 审查后发现的缺陷和修复轮数。比较 A/B 判断 v0.6.2 的净影响与额外
 成本。不要以单次成功宣称普遍提升。
 
 ### 已发布的 pilot
@@ -461,24 +496,24 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 - `apex_build` 最多运行四个可继续后台 Worker，但只有写入路径明确互不重叠时才允许并行；它不是
   自动无限 Swarm。能否发现并修复缺陷仍取决于主模型是否检查真实 diff、调用链和关键测试。
 - 插件不设置 Worker 墙钟超时；Harness、provider、网络层或用户主动中断仍可能结束一次调用。
-- `apex_state` 和其三态验收清单由模型主动维护，不是自动理解器；宿主只能限制验证预算，主模型仍需用真实工具结果校正状态。
+- `apex_state` 是可选的长任务压缩恢复记录，不是自动理解器，也不再是 `apex_validate_web` 的前置条件；主模型仍需用真实工具结果校正任务状态。
 - `apex_validate_web` 只服务于已构建的静态 Web 目录，不运行用户自定义 server command，也不把无头浏览器的 FPS 当作真实硬件 benchmark。
 - `repair-proof` 只接纳确定性页面异常、同合同 FPS 门槛失败或绑定最新通过截图的结构化阻塞视觉证据；默认两轮、收敛时最多三轮，外部环境复试另计，但仍不是任意失败后的无限重试。
 - 停滞检测是三次快照上的确定性启发式，不理解语义。
-- 可续租并不保证每次新查询都有价值；当前通过“具体缺口、不同查询、单个未使用租约”和 Pro
-  评审约束浪费，仍需用真实轨迹校准。
+- v0.6.2 不设直搜次数或查询租约；研究仅由无法从 Workspace 证据或已检查不变量确定的关键领域缺口触发，
+  结论必须落回实现约束或测试，其准确度与成本仍需用真实轨迹校准。
 - Flash 为了保持官方 Minimal 首请求形状仍会看到平台 shell，但固定工作项要求不用 shell，Guard 会
   拒绝任意 Worker shell 调用，第一次工具调用后工具门也会移除 shell，避免重复尝试。所有代码写入只使用
   `str_replace_editor`。Pro 始终保留 editor，并可继续修改未租出的路径；只有 Worker 的未转移租约会被
   阻止并发写入。
 - 状态化工具门和宿主复核改善的是执行轨迹约束；是否提高最终成品质量仍必须通过新的同题 A/B pilot
   验证，不能由结构测试直接推断。
-- v0.6.1 的代码与视觉子任务都只使用 `deepseek-official/deepseek-v4-flash-vision-exp` 并设置
+- v0.6.2 保留的可选代码与视觉子任务都只使用 `deepseek-official/deepseek-v4-flash-vision-exp` 并设置
   `reasoningEffort: max`；纯文本 Flash 不再使用，也不会改写主模型。
   若未来 provider/model 目录不再支持该强度，请求会明确失败而不会静默降级。
 - 视觉复核一次最多读取四张 Workspace 内的 PNG、JPEG、WebP 或 GIF；不接受外部绝对路径，也不自动
   修复代码。视觉判断仍可能出错，Pro 必须结合源代码和运行证据作最终判断。
-- 进程 Guard 覆盖已知宽泛终止形式，并用轻量词法扫描识别未引用的 Bash `&`；它不是完整 shell 解析器。
+- 进程 Guard 覆盖已知按名称宽泛终止形式；它不是完整 shell 解析器，也不阻止任务必需的有界后台进程。
 - 工具白名单固定为当前 Standard 模型工具；Harness 新增工具时必须审查后显式加入。
 - Windows 的 persistent PowerShell 路径来自官方 Minimal composition；真实 Windows 主机上的原生端到端表现仍需单独验证。
 - Harness 升级若改变 Minimal 或 Standard composition，基线测试会有意失败，必须先审查差异。
@@ -496,7 +531,7 @@ DSH_HOME="$TEST_HOME" dsh web --port 0
 - [yjh051108/dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite)：首请求之外的
   模式选择与 Pro/Flash 分工设计启发。
 - [yjh051108/dsh-router-standard](https://github.com/yjh051108/dsh-router-standard)：Pro 对控制类工具面
-  更敏感、Pro/Flash 不能共用同一提示约束，以及必须验证真实 Harness 装配链的实验依据；v0.6.1 还借鉴
+  更敏感、Pro/Flash 不能共用同一提示约束，以及必须验证真实 Harness 装配链的实验依据；冻结的 v0.6.1 还借鉴
   Flash 中性 persona、同请求近场引导、决策收敛与小工具面的设计原则。APEX 未采用其关键词分类器或
   persona 路由实现，也未复制提示模块。
 - [yjh051108/dsh-super-injector](https://github.com/yjh051108/dsh-super-injector/tree/c08136a526e7515dca106441e65cf7fccf63bbae)：

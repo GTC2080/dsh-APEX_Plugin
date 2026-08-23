@@ -43,7 +43,7 @@ The first-request anchoring hypothesis and evaluation design were informed by:
   commit 04255b55f16c4439e538239fb9783070c4165081
 
 The decision to keep mode classification and extra model calls outside the
-v0.3-v0.6.1 anchor, and the v0.5+ Pro/Flash role split, were informed by:
+v0.3-v0.6.2 anchor, and the v0.5+ Pro/Flash role split, were informed by:
 
   https://github.com/yjh051108/dsh-routing-suite
   commit a09eb0ade28e6ec3b8e5eb22985a14f6bfa1fbe5
@@ -108,6 +108,15 @@ storage, and image protocol contracts introduced by Harness commits
 4fa38d6a23bc2923a27ab4d375dde1b742ca830e and
 708a25a8a9362079185abb4f0c747cff4df74398. No image transport or third-party
 implementation was copied into APEX.
+
+APEX v0.6.2 freezes the v0.6.1 preset and introduces a task-neutral core by
+removing global engineering-task shell, installation, fetch, and research
+heuristics from the root path. Optional code-worker, runtime-validation,
+vision-review, research, and durable-state capabilities remain independently
+unlockable through the public Harness plugin contracts. This composition was
+compatibility-reviewed against DeepSeek Harness 0.1.1-rc.1 at commit
+6dc6b4f9762901ca04931fdcbb25db418fadf9ed. No additional third-party code was
+copied for this revision.
 
 DeepSeek and DeepSeek Harness are names of their respective owner. This
 community project is not affiliated with or endorsed by DeepSeek.

@@ -22,6 +22,7 @@ export const APEX_V05_PRESET_ID = 'apex-v05'
 export const APEX_V051_PRESET_ID = 'apex-v051'
 export const APEX_V06_PRESET_ID = 'apex-v06'
 export const APEX_V061_PRESET_ID = 'apex-v061'
+export const APEX_V062_PRESET_ID = 'apex-v062'
 
 const SUPPORTED_PLATFORMS = new Set(['darwin', 'linux', 'win32'])
 const PRESET_DIRECTORIES = Object.freeze({
@@ -33,10 +34,11 @@ const PRESET_DIRECTORIES = Object.freeze({
   [APEX_V051_PRESET_ID]: 'apex-v051',
   [APEX_V06_PRESET_ID]: 'apex-v06',
   [APEX_V061_PRESET_ID]: 'apex-v061',
+  [APEX_V062_PRESET_ID]: 'apex-v062',
 })
 export const PRESET_IDS = Object.freeze(Object.keys(PRESET_DIRECTORIES))
 export const ACTIVE_PRESET_IDS = Object.freeze([
-  APEX_V061_PRESET_ID,
+  APEX_V062_PRESET_ID,
 ])
 
 function errorMessage(error) {
