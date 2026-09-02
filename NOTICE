@@ -42,8 +42,8 @@ The first-request anchoring hypothesis and evaluation design were informed by:
   https://github.com/xiaobright/modeltest
   commit 04255b55f16c4439e538239fb9783070c4165081
 
-The decision to keep mode classification and extra model calls outside the
-v0.3-v0.6.2 anchor, and the v0.5+ Pro/Flash role split, were informed by:
+The decision to keep task classification and extra model calls outside the
+v0.3-v0.6.3 anchor, and the v0.5+ Pro/Flash role split, were informed by:
 
   https://github.com/yjh051108/dsh-routing-suite
   commit a09eb0ade28e6ec3b8e5eb22985a14f6bfa1fbe5
@@ -117,6 +117,17 @@ unlockable through the public Harness plugin contracts. This composition was
 compatibility-reviewed against DeepSeek Harness 0.1.1-rc.1 at commit
 6dc6b4f9762901ca04931fdcbb25db418fadf9ed. No additional third-party code was
 copied for this revision.
+
+APEX v0.6.3 freezes the v0.6.2 preset and adds an independent host-side
+evidence layer for artifact generations, Web-validation stages, read-only
+visual review, structured Vision Flash research, and direct child-scoped PTC
+presentation for newly labelled Vision Flash code workers. It uses Node.js
+standard-library hashing plus the existing Harness session, subagent, PTC,
+code-runtime, and image-context contracts; no additional dependency or
+third-party implementation was copied. This composition is
+compatibility-reviewed against DeepSeek Harness 0.1.2-alpha.3 at commit
+dd6322d604e00eec1ba5e0c8541159906a21094a. Its Minimal composition remains
+byte-identical to the reviewed baseline.
 
 DeepSeek and DeepSeek Harness are names of their respective owner. This
 community project is not affiliated with or endorsed by DeepSeek.
