@@ -551,11 +551,15 @@ test('the implementation transition permits explicit Workspace writes from Shell
   ], root)
   const directWrite = {
     name: BOOTSTRAP_TOOLS[0],
-    arguments: { command: "cat > index.html <<'EOF'\n<!doctype html><title>Model</title>\nEOF" },
+    arguments: {
+      command: process.platform === 'win32'
+        ? "Set-Content -LiteralPath index.html -Value '<!doctype html><title>Model</title>'"
+        : "printf '%s' '<!doctype html><title>Model</title>' > index.html",
+    },
     agent: scopedAgent,
   }
   const scriptWrite = {
-    name: BOOTSTRAP_TOOLS[0],
+    name: 'bash',
     arguments: {
       command: "python3 - <<'PY'\nfrom pathlib import Path\nPath('index.html').write_text('<!doctype html>')\nPY",
     },
@@ -569,15 +573,16 @@ test('the implementation transition permits explicit Workspace writes from Shell
 
 test('a temporary solver script is not mistaken for Workspace implementation', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'apex-v063-compute-temp-script-'))
+  const scratch = join(tmpdir(), 'apex-v063-searchsa.py')
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const scopedAgent = agent([
     computeCheckpointEvent(),
     ...timedShellCall('blocker-1', 1_000, 1_200, false, 'python3 candidate.py'),
   ], root)
   const execution = {
-    name: BOOTSTRAP_TOOLS[0],
+    name: 'bash',
     arguments: {
-      command: "cat > /tmp/searchsa.py <<'PY'\nprint('another grid search')\nPY\npython3 /tmp/searchsa.py",
+      command: `cat > '${scratch}' <<'PY'\nprint('another grid search')\nPY\npython3 '${scratch}'`,
     },
     agent: scopedAgent,
   }
