@@ -901,6 +901,7 @@ test('general root work is not constrained by v0.6.1 engineering heuristics', ()
 
 test('bounded Bash heredocs follow the official persistent-shell contract', () => {
   const root = agent()
+  const scratch = name => join(tmpdir(), name)
   for (const command of [
     "cat > index.html <<'EOF'\n<script src=\"/assets/app.js\"></script>\n<p>$HOME stays literal</p>\nEOF",
     "cat <<'JS' > src/app.js\nexport const route = '/api/status'\nJS",
@@ -908,17 +909,17 @@ test('bounded Bash heredocs follow the official persistent-shell contract', () =
     "node --input-type=module - <<'EOF'\nconsole.log('ok')\n// Check opening total logic via wall box coverage maybe\nEOF",
     "node <<'EOF'\n// diagnostic path /etc/passwd\nconsole.log('safe')\nEOF",
     "cat > first.txt <<'FIRST'\none\nFIRST\ncat > second.txt <<'SECOND'\ntwo\nSECOND",
-    "cat > /tmp/apex-v062-out.txt <<'EOF'\ntext\nEOF",
+    `cat > '${scratch('apex-v062-out.txt')}' <<'EOF'\ntext\nEOF`,
     "cd /workspace && mkdir -p .tmp && cat > .tmp/pbf.js <<'EOF'\nconst scratch = '/tmp/pbf.js';\nconst ratio = 1 / 3;\nEOF",
     "cd /workspace && node <<'EOF'\nconsole.log('/etc/passwd is text, not a file operation')\nEOF",
-    "sed 's/const h=spacing\\*1.35;/const h=spacing*1.5;/' /tmp/pbf_test2.js > /tmp/pbf_test3.js",
+    `sed 's/const h=spacing\\*1.35;/const h=spacing*1.5;/' '${scratch('pbf_test2.js')}' > '${scratch('pbf_test3.js')}'`,
     "cd /workspace && for it in 4 5 6; do sed \"s/const solverIters=3;/const solverIters=$it;/\" .tmp/pbf.js > .tmp/pbf_$it.js; done",
     "printf '%s\\n' $((1 << 2))",
     "printf '%s\\n' $((1 << SHIFT))\nprintf '%s\\n' done",
     "cat <<< payload",
   ]) {
     assert.equal(guardExecution({
-      name: BOOTSTRAP_TOOLS[0],
+      name: 'bash',
       arguments: { command },
       agent: root,
     }), undefined, command)
@@ -931,14 +932,14 @@ test('bounded Bash heredocs follow the official persistent-shell contract', () =
     "node <<EOF\nconsole.log('$HOME/private')\nEOF",
   ]) {
     assert.equal(guardExecution({
-      name: BOOTSTRAP_TOOLS[0],
+      name: 'bash',
       arguments: { command },
       agent: root,
     }), WORKSPACE_SHELL_REASON, command)
   }
 
   assert.equal(guardExecution({
-    name: BOOTSTRAP_TOOLS[0],
+    name: 'bash',
     arguments: { command: "cat > index.html <<'EOF'\n<main>unfinished</main>" },
     agent: root,
   }), SHELL_HEREDOC_FORMAT_REASON)
@@ -1077,7 +1078,7 @@ test('workspace guard ignores URL syntax and script operators while keeping real
   ]
   for (const command of allowed) {
     assert.equal(guardExecution({
-      name: BOOTSTRAP_TOOLS[0],
+      name: 'bash',
       arguments: { command },
       agent: root,
     }), undefined, command)
@@ -1090,15 +1091,15 @@ test('workspace guard ignores URL syntax and script operators while keeping real
     'ls /Applications',
   ]) {
     assert.equal(guardExecution({
-      name: BOOTSTRAP_TOOLS[0],
+      name: 'bash',
       arguments: { command },
       agent: root,
     }), WORKSPACE_SHELL_REASON, command)
   }
 
   assert.equal(guardExecution({
-    name: BOOTSTRAP_TOOLS[0],
-    arguments: { command: 'curl -o /tmp/remote.js https://example.com/app.js' },
+    name: 'bash',
+    arguments: { command: `curl -o '${join(tmpdir(), 'remote.js')}' https://example.com/app.js` },
     agent: root,
   }), undefined)
 })

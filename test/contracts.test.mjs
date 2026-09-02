@@ -3,9 +3,14 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
 
+import { apply as applyApexBuild } from '../presets/apex-v063/apex-build.mjs'
+import { apply as applyDeliveryVerification } from '../presets/apex-v063/apex-delivery.mjs'
+import { RESEARCH_OUTPUT_SCHEMA } from '../presets/apex-v063/apex-research.mjs'
+import { VISION_OUTPUT_SCHEMA } from '../presets/apex-v063/apex-vision.mjs'
+import { apply as applyWorkerWait } from '../presets/apex-v063/worker-wait.mjs'
 import { apply as registerWindowsBash } from '../presets/v2/windows-bash.mjs'
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -19,42 +24,59 @@ const apexV051Composition = join(projectRoot, 'presets', 'apex-v051', 'agent.cor
 const apexV06Composition = join(projectRoot, 'presets', 'apex-v06', 'agent.cordis.yml')
 const apexV061Composition = join(projectRoot, 'presets', 'apex-v061', 'agent.cordis.yml')
 const apexV062Composition = join(projectRoot, 'presets', 'apex-v062', 'agent.cordis.yml')
+const apexV063Composition = join(projectRoot, 'presets', 'apex-v063', 'agent.cordis.yml')
 const defaultCheckout = resolve(projectRoot, '..', '..', 'deepseek-harness', 'source')
 const dshCheckout = process.env.DSH_CHECKOUT === undefined
   ? defaultCheckout
   : resolve(process.env.DSH_CHECKOUT)
 const officialMinimal = join(
   dshCheckout,
-  'apps',
-  'cli',
-  'config',
+  'packages',
+  'preset',
   'agent-presets',
+  'presets',
   'minimal',
   'agent.cordis.yml',
 )
 const officialStandard = join(
   dshCheckout,
-  'apps',
-  'cli',
-  'config',
+  'packages',
+  'preset',
   'agent-presets',
+  'presets',
   'standard',
   'agent.cordis.yml',
+)
+const dshToolsLibrary = join(
+  dshCheckout,
+  'packages',
+  'core',
+  'tools',
+  'lib',
+  'index.js',
 )
 
 function packageNames(text) {
   return new Set([...text.matchAll(/^\s+name: '([^']+)'$/gm)].map((match) => match[1]))
 }
 
+const STANDARD_NON_MODEL_PACKAGES = new Set([
+  '@deepseek-ai/dsh-command-goal',
+])
+
 async function missingStandardPackages(composition, ignored = new Set()) {
   const expected = packageNames(await readFile(officialStandard, 'utf8'))
   const actual = packageNames(await readFile(composition, 'utf8'))
-  return [...expected].filter((packageName) => !ignored.has(packageName) && !actual.has(packageName))
+  return [...expected].filter((packageName) => (
+    !STANDARD_NON_MODEL_PACKAGES.has(packageName)
+    && !ignored.has(packageName)
+    && !actual.has(packageName)
+  ))
 }
 
 test('package declares an official DSH bundle layer without install-time scripts', async () => {
   const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'))
-  assert.equal(manifest.version, '0.6.2')
+  assert.equal(manifest.version, '0.6.3')
   assert.deepEqual(manifest.dsh, { bundle: { patch: './cordis.patch.yml' } })
   assert.equal(manifest.scripts.prepare, undefined)
   assert.equal(manifest.scripts.postinstall, undefined)
@@ -66,6 +88,7 @@ test('package declares an official DSH bundle layer without install-time scripts
   assert.equal(manifest.files.includes('presets/apex-v06'), true)
   assert.equal(manifest.files.includes('presets/apex-v061'), true)
   assert.equal(manifest.files.includes('presets/apex-v062'), true)
+  assert.equal(manifest.files.includes('presets/apex-v063'), true)
   assert.match(
     await readFile(join(projectRoot, 'cordis.patch.yml'), 'utf8'),
     /id: minimal-max-preset-installer[\s\S]*name: dsh-minimal-max/,
@@ -229,7 +252,110 @@ test('APEX v0.6.2 preserves Minimal while making optional capability packs indep
   assert.doesNotMatch(gate, /ROOT_SHELL_HARD_LIMIT|shellBudget|capability card/i)
 })
 
-test('pins the rc.8 first-request composition to the reviewed Minimal baseline', async () => {
+test('APEX v0.6.3 keeps the task-neutral core and adds host-owned evidence convergence', async () => {
+  const content = await readFile(apexV063Composition, 'utf8')
+  const policy = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-policy.mjs'), 'utf8')
+  const builder = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-build.mjs'), 'utf8')
+  const broker = await readFile(join(projectRoot, 'presets', 'apex-v063', 'dev-tool-search.mjs'), 'utf8')
+  const executionGuard = await readFile(join(projectRoot, 'presets', 'apex-v063', 'execution-guard.mjs'), 'utf8')
+  const gate = await readFile(join(projectRoot, 'presets', 'apex-v063', 'tool-gate.mjs'), 'utf8')
+  const validation = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-validation.mjs'), 'utf8')
+  const vision = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-vision.mjs'), 'utf8')
+  const research = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-research.mjs'), 'utf8')
+  const evidence = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-evidence.mjs'), 'utf8')
+  const delivery = await readFile(join(projectRoot, 'presets', 'apex-v063', 'apex-delivery.mjs'), 'utf8')
+
+  assert.match(content, /text: You are a helpful software engineer assistant\./)
+  assert.match(content, /complete: true/)
+  assert.match(content, /includeRuntimeContext: false/)
+  assert.doesNotMatch(content, /@deepseek-ai\/dsh-command-goal/)
+  assert.match(policy, /Work directly by default/)
+  assert.match(policy, /Do not impose a task-wide Vision call count/)
+  assert.doesNotMatch(policy, /must start apex_build/i)
+  assert.doesNotMatch(policy, /enforceFlashMax|agent\/request/)
+  assert.doesNotMatch(policy, /CAPABILITY_DIRECTORY|apex-capability-directory/)
+  assert.match(broker, /identical evidence is cached, while changed evidence remains inspectable/)
+  assert.match(gate, /sessionEvidenceEvents/)
+  assert.match(validation, /artifactSnapshot/)
+  assert.match(validation, /The host selects the stage/)
+  assert.doesNotMatch(validation, /mode: \{ type:/)
+  assert.match(vision, /evidenceKey/)
+  assert.match(vision, /resolved_issue_ids/)
+  assert.match(vision, /outputSchema: VISION_OUTPUT_SCHEMA/)
+  assert.match(vision, /toolFilter: \{ allow: \['read_image'\] \}/)
+  assert.match(vision, /no session-wide Vision call limit/i)
+  assert.doesNotMatch(content, /apex-review\.mjs|apex_review/)
+  assert.match(content, /name: \.\/apex-research\.mjs/)
+  assert.match(content, /name: \.\/apex-delivery\.mjs/)
+  assert.match(broker, /apex_research/)
+  assert.match(policy, /Vision Flash retrieves traceable sources/)
+  assert.match(research, /toolFilter: \{ allow: \[\.\.\.RESEARCH_CHILD_TOOLS\] \}/)
+  assert.match(research, /outputSchema: RESEARCH_OUTPUT_SCHEMA/)
+  assert.match(builder, /reasoningEffort: proCore \? PRO_MAX_REASONING_EFFORT : FLASH_MAX_REASONING_EFFORT/)
+  assert.match(vision, /reasoningEffort: FLASH_MAX_REASONING_EFFORT/)
+  assert.match(research, /reasoningEffort: FLASH_MAX_REASONING_EFFORT/)
+  assert.match(gate, /FLASH_MAX_MODEL = 'deepseek-v4-flash-vision-exp'/)
+  assert.match(gate, /FLASH_MAX_REASONING_EFFORT = 'max'/)
+  assert.match(gate, /PRO_MAX_MODEL = 'deepseek-v4-pro'/)
+  assert.match(gate, /PRO_MAX_REASONING_EFFORT = 'max'/)
+  assert.match(builder, /registerContinuableSetup\(installCodeWorkerPtc\)/)
+  assert.match(builder, /presentAs\('ptc'\)/)
+  assert.match(builder, /FLASH_PRODUCTION_WORKER_TOOLS/)
+  assert.match(builder, /PRO_CORE_WORKER_TOOLS/)
+  assert.doesNotMatch(builder, /'report'/)
+  assert.doesNotMatch(gate, /FLASH_MAX_MODEL = 'deepseek-v4-flash'/)
+  assert.doesNotMatch(broker, /apex_review/)
+  assert.doesNotMatch(policy, /independent read-only Pro reviewer/i)
+  assert.equal(existsSync(join(projectRoot, 'presets', 'apex-v063', 'apex-review.mjs')), false)
+  assert.match(evidence, /createHash\('sha256'\)/)
+  assert.match(delivery, /name: 'apex_verify_delivery'/)
+  assert.match(delivery, /exact_files/)
+  assert.match(delivery, /file_count_checks/)
+  assert.match(delivery, /max_character_checks/)
+  assert.match(delivery, /required_literal_checks/)
+  assert.match(delivery, /content_unconstrained_files/)
+  assert.doesNotMatch(delivery, /Poolrooms|WebGPU|double-wishbone|900|同步抛/i)
+  assert.doesNotMatch(executionGuard, /normalizeEditorNullArguments|normalizeEditorCall/)
+})
+
+test(
+  'APEX v0.6.3 child output schemas match the checked-out Harness subset',
+  { skip: !existsSync(dshToolsLibrary) },
+  async () => {
+    const { assertSupportedJsonSchema } = await import(pathToFileURL(dshToolsLibrary).href)
+    assert.doesNotThrow(() => assertSupportedJsonSchema(RESEARCH_OUTPUT_SCHEMA))
+    assert.doesNotThrow(() => assertSupportedJsonSchema(VISION_OUTPUT_SCHEMA))
+    let deliveryTool
+    applyDeliveryVerification({
+      tools: {
+        register(value) {
+          deliveryTool = value
+          return () => {}
+        },
+      },
+    })
+    assert.doesNotThrow(() => assertSupportedJsonSchema(deliveryTool.parameters))
+    assert.doesNotThrow(() => assertSupportedJsonSchema(deliveryTool.output.schema))
+    let buildTool
+    applyApexBuild({
+      tools: { register(value) { buildTool = value; return () => {} } },
+      subagents: {
+        registerContinuableSetup() { return () => {} },
+        startContinuable() { throw new Error('not executed by schema validation') },
+      },
+    })
+    assert.doesNotThrow(() => assertSupportedJsonSchema(buildTool.output.schema))
+    let waitTool
+    applyWorkerWait({
+      tools: { register(value) { waitTool = value; return () => {} } },
+      on() { return () => {} },
+      sessionPersistence: {},
+    })
+    assert.doesNotThrow(() => assertSupportedJsonSchema(waitTool.output.schema))
+  },
+)
+
+test('pins the v0.1.2-alpha.3 first-request composition to the reviewed Minimal baseline', async () => {
   const content = await readFile(posixComposition)
   const digest = createHash('sha256').update(content).digest('hex')
   assert.equal(digest, 'c952e72ff87cb09e6d2700dcf806c6584a67cf867adcd103ec822a6c538d4f87')
@@ -385,8 +511,16 @@ test('APEX v0.6.2 keeps the cross-platform persistent shell composition', async 
   assert.match(content, /name: '@deepseek-ai\/dsh-tool-pwsh-persistent'/)
 })
 
+test('APEX v0.6.3 keeps the cross-platform persistent shell composition', async () => {
+  const content = await readFile(apexV063Composition, 'utf8')
+  assert.equal(existsSync(join(projectRoot, 'presets', 'apex-v063', 'windows-bash.mjs')), false)
+  assert.match(content, /shellDialect: pwsh/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-bash-persistent'/)
+  assert.match(content, /name: '@deepseek-ai\/dsh-tool-pwsh-persistent'/)
+})
+
 test(
-  'v0.2 carries every current Standard package row before request-time filtering',
+  'v0.2 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(v2Composition), [])
@@ -394,7 +528,7 @@ test(
 )
 
 test(
-  'APEX v0.3 carries every current Standard package row before request-time filtering',
+  'APEX v0.3 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexComposition), [])
@@ -402,7 +536,7 @@ test(
 )
 
 test(
-  'APEX v0.4 carries every current Standard package row before request-time filtering',
+  'APEX v0.4 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV04Composition), [])
@@ -410,7 +544,7 @@ test(
 )
 
 test(
-  'APEX v0.4.1 carries every current Standard package row before request-time filtering',
+  'APEX v0.4.1 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV041Composition), [])
@@ -418,7 +552,7 @@ test(
 )
 
 test(
-  'APEX v0.5 carries every current Standard package row before request-time filtering',
+  'APEX v0.5 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV05Composition), [])
@@ -426,7 +560,7 @@ test(
 )
 
 test(
-  'APEX v0.5.1 carries every current Standard package row before request-time filtering',
+  'APEX v0.5.1 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV051Composition), [])
@@ -434,7 +568,7 @@ test(
 )
 
 test(
-  'APEX v0.6 carries every current Standard package row before request-time filtering',
+  'APEX v0.6 carries current Standard model/tool rows before request-time filtering',
   { skip: !existsSync(officialStandard) },
   async () => {
     assert.deepEqual(await missingStandardPackages(apexV06Composition), [])
@@ -470,6 +604,22 @@ test(
       '@deepseek-ai/dsh-tool-ralph',
     ])
     assert.deepEqual(await missingStandardPackages(apexV062Composition, removed), [])
+  },
+)
+
+test(
+  'APEX v0.6.3 carries Standard except deliberately removed delegation rows',
+  { skip: !existsSync(officialStandard) },
+  async () => {
+    const removed = new Set([
+      '@deepseek-ai/dsh-tool-subagent',
+      '@deepseek-ai/dsh-tool-subagent-control',
+      '@deepseek-ai/dsh-tool-subagent-control/list-agents',
+      '@deepseek-ai/dsh-workflow-worker-thread',
+      '@deepseek-ai/dsh-tool-workflow',
+      '@deepseek-ai/dsh-tool-ralph',
+    ])
+    assert.deepEqual(await missingStandardPackages(apexV063Composition, removed), [])
   },
 )
 
