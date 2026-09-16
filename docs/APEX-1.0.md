@@ -188,6 +188,31 @@ const result = await tools.apex_validate_web({
 
 `apex_read_evidence` 每页最多六个记录；使用 `before_seq` 翻页或 `refs` 精确定位。保留对应参数、结果和错误标志，显式标记裁剪及未展示的非文本内容。支持当前会话历史而不只当前任务，结果不代表新执行、不推断退出码、测试数或验收状态。拒绝跨会话读取；压缩不改写原生历史。
 
+## 安装与升级
+
+源码通过本 GitHub 仓库分发，尚未发布到 npm。安装入口为仓库根目录；可以克隆后按下列命令安装，也可用固定 commit 的 GitHub 依赖。
+
+先核验官方构建身份、提交和产物摘要；确认 live `DSH_HOME` 中没有正在运行的任务，停止旧 Host 后再迁移。以下命令中的路径须替换为实际路径，始终使用同一个 live Home：
+
+```sh
+DSH_HOME="/absolute/live-home" dsh plugin --profile web remove dsh-minimal-max
+DSH_HOME="/absolute/live-home" dsh plugin --profile web add \
+  "/absolute/official-checkout/packages/experimental/agent-team" \
+  "/absolute/official-checkout/packages/experimental/client-ui-agent-team" \
+  "/absolute/apex-source" --config.auto-install-peers=false
+DSH_HOME="/absolute/live-home" dsh --profile web --dump-config
+```
+
+从官方源码运行时，将 `dsh` 换为该 checkout 的 `corepack pnpm dsh`。全新安装跳过旧包移除命令。两项 Teams 依赖必须与 Host 同为 `0.1.6-alpha.1`；它们是普通依赖，由 APEX bundle 各注册一次服务和官方 Web 面板，不安装官方全局 Team 工具层。
+
+该基线使用官方 `ptc-runtime-node`，每次 `run_code` 为独立受文件策略约束的 Node 进程，默认单次 120 秒、最大 600 秒，`process.env` 初始为空；超时包含嵌套工具和审批等待，不是任务总预算。macOS 的附加进程信号保护只适用于 Bash／`apex_run_script`，不能推断任意 PTC Node 程序也受到相同信号保护。官方 Messages 协议与图片处理由 Host 提供，APEX 不覆盖模型路由；自定义 API 地址需要按官方升级说明检查协议兼容性。
+
+官方新增的 `session-log-deepseek` 默认贡献完整会话事件后缀。需要保持升级前的数据发送范围时，可在用户级 `cordis.patch.yml` 为该 ID 配置 `enabled: false`；这不关闭正常模型请求，也不是 APEX 隐藏修改的全局默认。不自动启用实验性 Computer Use、Browser Use 或 Auto Review。
+
+配置检查与真实预设挂载成功后，使用原生设置把新会话默认预设设为 `apex-v1`。不要在迁移中途启动 Host。插件安装器只创建新预设；相同内容可重复安装，目录不安全、内容不同、Host 不兼容时明确失败，不覆盖用户预设。
+
+旧包名没有兼容别名。旧会话和测试作品不删除、不改写；旧任务不保证继续执行。旧预设目录不会被安装器自动删除。移除 APEX 时使用原生 CLI 移除 `dsh-apex` 并选择官方默认预设；只移除已确认无人使用的 Teams 依赖，不回写旧会话。
+
 ## 安装安全与失败策略
 
 1. 固定官方基线 `v0.1.6-alpha.1`，提交 `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d`。安装、启动前核验官方 build profile、commit、产物摘要；不通过就停止，不新建第二套安装绕过。
@@ -200,6 +225,16 @@ const result = await tools.apex_validate_web({
 创建式安装器不会热覆盖一个内容不同的既有 `apex-v1`。后续开发更新必须在维护窗口明确处理该用户预设后再安装；不能用覆盖逻辑绕过差异检查。用户想退出 APEX 时可移除 bundle、把默认预设切回官方模式，历史文件仍原样保留。
 
 ## 测试迁移与验收
+
+在插件源码目录运行：
+
+```sh
+npm test
+npm run check:public
+npm pack --dry-run --json
+```
+
+原生集成测试需要匹配且已构建的 Harness，以及可解析依赖的隔离测试 profile；`DSH_CHECKOUT` 与 `DSH_HOME` 分别指向这些测试资源。测试使用脚本化模型响应，无 API 费用；浏览器检查使用独立无头 Chromium。缺少 Harness 时相应测试明确跳过，不能把跳过计为原生集成通过。测试配置与运行范围见 [公开版本说明](PUBLICATION.md)。
 
 沿用 `node:test`，只运行 `test/apex-v1-*.test.mjs`；无新增测试框架。脚本化模型只用于确定性协议测试，不能作为真实模型能力评分。
 
