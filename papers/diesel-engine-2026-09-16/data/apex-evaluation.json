@@ -1,0 +1,1141 @@
+{
+  "schemaVersion": 1,
+  "caseId": "apex-single-generation",
+  "benchmarkId": "diesel-engine-2026-09-16",
+  "evaluatedAt": "2026-09-16T10:58:04.944011+00:00",
+  "executionStatus": "completed-natural",
+  "scoringStatus": "completed",
+  "overallAcceptance": "failed",
+  "outcome": "usable interactive demonstration; original high-precision benchmark not fully satisfied",
+  "configuration": {
+    "preset": "apex-v1",
+    "provider": "deepseek-official",
+    "model": "deepseek-flash",
+    "reasoningEffort": "max",
+    "parentPrompts": 1,
+    "followups": 0,
+    "automaticResubmissions": 0,
+    "controlSamples": 0,
+    "maximumOutputPolicy": "retain current native provider and preset limits; no evaluator override",
+    "wallTimePolicy": "natural completion; no evaluator wall-clock cap",
+    "completedStepPolicy": "natural completion; no evaluator step cap",
+    "permission": "workspace-write",
+    "network": "existing native tool and network permissions",
+    "evaluationTreeSeparated": true,
+    "strictReadIsolationProven": false,
+    "viewport": {
+      "width": 1440,
+      "height": 900,
+      "deviceScaleFactor": 1
+    },
+    "performanceProtocol": "3 foreground states, each 5 seconds warmup and 30 seconds sampling; render presentation proof required for P1/P2; rAF alone is proxy evidence",
+    "gradingProtocol": "PROTOCOL.md",
+    "harnessCommit": "0a15e36e7f82b6ed45af6fa9759f29b40dcd965d",
+    "liveHome": "[local-path-redacted]"
+  },
+  "workspace": "[local-path-redacted]",
+  "entry": "dist/index.html",
+  "previewUrl": "http://example.invalid/",
+  "intervened": false,
+  "interventionBoundary": "No evaluator prompt followups, source repairs, rebuilt artifacts or quality reductions. Measurement scripts and traces reside outside the frozen artifact.",
+  "blinding": {
+    "strictBlind": false,
+    "presetKnownToEvaluator": true,
+    "scopeSignalsFound": 0,
+    "strictReadIsolationProven": false,
+    "claim": "Independent of model self-assessment; not an independent third-party or strictly blinded comparison."
+  },
+  "durationMs": 1604643,
+  "familySize": 6,
+  "completedSteps": 318,
+  "tokenUsage": {
+    "uncachedInputTokens": 451959,
+    "outputTokens": 1229906,
+    "cacheReadTokens": 59977084,
+    "cacheWriteTokens": 0
+  },
+  "providerBill": null,
+  "criteria": {
+    "R1": {
+      "maximum": 5,
+      "points": 5,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "71 个冻结文件、22 对源码/网页资源一致；真实 HTTP/WebGL2 场景可用。"
+    },
+    "R2": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "独立浏览器交互和三种前台性能状态均无运行错误或资源缺失。"
+    },
+    "R3": {
+      "maximum": 1,
+      "points": 0.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "启动及操作说明可用；README 仍把凸轮误差写为不超过 1 mm，与实测 3.01 mm 及最终回复 3.04 mm 不一致；部分参数说明陈旧。"
+    },
+    "S1": {
+      "maximum": 4,
+      "points": 4,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "缸体、缸盖、油底壳、飞轮壳、正时室均有可辨识实体与剖视位置。"
+    },
+    "S2": {
+      "maximum": 6,
+      "points": 5.4,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "10 个指定部件均存在且形状可辨；主轴颈、连杆颈及大头瓦的装配位置扣分。主轴颈偏移 23 mm，连杆颈偏移 26 mm，轴瓦仅约一半轴向宽度有轴颈支承。"
+    },
+    "S3": {
+      "maximum": 5,
+      "points": 5,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "7 类配气部件均有实际几何及可观察层级；运动中的接触和伸缩缺陷计 K4。"
+    },
+    "S4": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "高压泵、喷油器、滤清器、高压管均有实体，管路与喷嘴布置可核对。"
+    },
+    "S5": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "油泵、滤清器、冷却器及带 5 道支路的实体主油道齐备；粒子与实体路径失配计 F2。"
+    },
+    "S6": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "水泵、节温器、散热器、气缸周围水套及连接水管齐备；流线失配计 F1。"
+    },
+    "S7": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "进排气管、中冷器和涡轮总成均存在；压气机/涡轮轮组及连接轴共用实际转子。"
+    },
+    "S8": {
+      "maximum": 1,
+      "points": 1,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "螺栓、密封圈、垫片均有实体、相应位置和拆解层级。"
+    },
+    "K1": {
+      "maximum": 6,
+      "points": 6,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]"
+      ],
+      "reason": "49 个固定相位、四缸共 196 组的冲程顺序、方向及 720° 重复性正确。活塞卡片止点文案错误计 I5。"
+    },
+    "K2": {
+      "maximum": 6,
+      "points": 4.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "实际行程 127 mm，连杆中心距 216 mm，直线活塞和径向联动正确；大头与曲柄销中心存在固定 26 mm 轴向错位，不能称装配关系完全正确。"
+    },
+    "K3": {
+      "maximum": 3,
+      "points": 3,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]"
+      ],
+      "reason": "展开角到 1440°：曲轴 -8π、凸轮 -4π，逐样本比值误差为 0，两周期无相位漂移。"
+    },
+    "K4": {
+      "maximum": 5,
+      "points": 2.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "气门升程、正时状态、弹簧缩短和回座同步；实际推杆长度 332–341.1298 mm，实际平底挺柱与凸轮最多穿入 3.0101 mm，完整刚性接触链未满足。"
+    },
+    "K5": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "1 缸 345°不喷、346–372°喷、373°停止，实际喷束组可见性及透明度随相位变化；空气压缩末喷油，预热塞未冒充火花点火。"
+    },
+    "K6": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "三档实际 RPM 改变运动；原交付 frameBody 在 30/60/120 Hz、三档 RPM、同为 2 秒下相位一致，全部误差 0；仅替换测量时钟和渲染/UI 输出端。"
+    },
+    "F1": {
+      "maximum": 3,
+      "points": 2,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "冷却粒子有方向且主曲线闭合并经过水泵/水套/散热器区域；实际水泵出水口距动画中心线约 107.97 mm，远大于两者半径之和 34 mm，动画未沿该实体出水管。"
+    },
+    "F2": {
+      "maximum": 3,
+      "points": 2,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "油底壳、油泵、冷却过滤及主循环可见；主轴承第 5 支路的动画起点距主循环约 153.69 mm，多条支路末端与回流未连接，完整路径未通过。"
+    },
+    "F3": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "1100/1600/2100 rpm 下，两路实际粒子相位推进和声明流速均改变；负荷由 RPM 派生并可在运行状态中观察。没有独立负荷滑条，不声称独立负荷操作已验证。"
+    },
+    "F4": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "RPM、水温、油压有单位与图例；工况来自确定的一阶模拟，已声明示意性质，未使用随机值伪装实测。"
+    },
+    "I1": {
+      "maximum": 4,
+      "points": 2,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "12 个固定对象中 11 个完成真实表面悬停；活塞可见表面被已剖掉的输油泵抢占。剖视还出现多种错选。真实离开画布到滑条后卡片消失；133 类型有登记，未声称全数逐件实测。"
+    },
+    "I2": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "登记的 133 类型均有对应中英文名称，抽查正确；剖视命中错误已在 I1 计分，避免重复计同一问题。"
+    },
+    "I3": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "133 类型均有材料和工艺，抽查活塞、阀、滤清器等内容有针对性；这些是设计说明，不是实物材料认证。"
+    },
+    "I4": {
+      "maximum": 2,
+      "points": 1,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "功能及多数参数有单位；气门卡写 176 mm 而实物几何 171.5 mm，喷油器卡写 5 孔而喷嘴几何 7 孔，泵齿轮卡仍含旧齿数。"
+    },
+    "I5": {
+      "maximum": 2,
+      "points": 0.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "锁定气门卡中文可从全开刷新为关闭；静止鼠标普通悬停不刷新，锁定英文仍为 Fully open；喷油器显示 undefined；360°上止点被活塞文案写成下止点。"
+    },
+    "V1": {
+      "maximum": 3,
+      "points": 3,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "实际 Standard/Physical PBR 材质、环境反射、阴影、粗糙度及金属/橡胶区分存在。"
+    },
+    "V2": {
+      "maximum": 3,
+      "points": 3,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "真实剖切与半透明材质暴露活塞、曲轴连杆、阀系及流路；33 个结构材质有剖切平面，运动件保留实体。"
+    },
+    "V3": {
+      "maximum": 2,
+      "points": 2,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]"
+      ],
+      "reason": "俯视、侧视、剖视、自由视角均改变实际相机与目标，截图可复核。"
+    },
+    "V4": {
+      "maximum": 2,
+      "points": 1.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "鼠标旋转、缩放、平移可用；默认双侧面板和较大的跟随卡片挤占观察区，需要移开或关闭卡片才能完整观察部分运动。"
+    },
+    "D1": {
+      "maximum": 2,
+      "points": 1.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "实际缸径约 104.99998 mm、行程 127 mm、偏心距 63.5 mm、连杆 216 mm、销 40×84 mm、升程 11.15/10.25 mm 均核对；压缩比几何定义仍有限制。",
+      "unverifiedAvailablePoints": 0.5,
+      "unverifiedReason": "实际活塞回转剖面 + 平顶缸盖/缸垫估算压缩比约 17.42；未建立包含阀座凹腔、环隙的封闭气体域，完整几何压缩比未验证。名义公式结果 17.514 不代替真实几何。"
+    },
+    "D2": {
+      "maximum": 2,
+      "points": 1.1,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]"
+      ],
+      "reason": "37 个曲面样本中 20 个弦高不超过 0.1 mm；主轴颈 0.1310、连杆颈 0.1237、活塞销座凸台 0.1635 mm 超标，不能认证总体 0.1 mm。"
+    },
+    "D3": {
+      "maximum": 2,
+      "points": 0.5,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "活塞名义单侧间隙约 0.12 mm，固定角度采样下气门最低点与活塞最高点至少分离 1 mm；轴承零名义运行间隙及半宽支承、凸轮穿入使整体装配间隙不通过。"
+    },
+    "P1": {
+      "maximum": 3,
+      "points": 3,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "三种原生有效呈现均值为 101.4667 / 113.9 / 107.8667 FPS，固定各 30 秒，没有使用页面自报 FPS 代替。"
+    },
+    "P2": {
+      "maximum": 1,
+      "points": 0,
+      "status": "failed",
+      "evidence": [
+        "[local-path-redacted]"
+      ],
+      "reason": "逐秒最低均超过 60 FPS，但外观状态有一次超过 33.33 ms 的长帧；严格零长帧条件失败。"
+    },
+    "P3": {
+      "maximum": 1,
+      "points": 1,
+      "status": "passed",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "记录硬件、120 Hz 显示器、1440×900/DPR1、最高质量、阴影、原始压缩 trace、解析器及限制；演示服务同时运行，未声称隔离 GPU 负载。"
+    },
+    "P4": {
+      "maximum": 1,
+      "points": 0.8,
+      "status": "partial",
+      "evidence": [
+        "[local-path-redacted]",
+        "[local-path-redacted]"
+      ],
+      "reason": "相机、拾取响应与 resize 验证正常；前台切换尝试未让原页进入 hidden，不能把这一结果当作实际后台恢复通过，也不能判作作品故障。",
+      "unverifiedAvailablePoints": 0.2,
+      "unverifiedReason": "浏览器带前台窗口但切换后 document.visibilityState 一直为 visible，环境未触发计划中的后台状态。"
+    }
+  },
+  "categories": {
+    "R": {
+      "label": "可运行交付",
+      "maximum": 8,
+      "points": 7.5
+    },
+    "S": {
+      "label": "零件与装配",
+      "maximum": 24,
+      "points": 23.4
+    },
+    "K": {
+      "label": "四冲程运动",
+      "maximum": 24,
+      "points": 20.0
+    },
+    "F": {
+      "label": "流动与工况",
+      "maximum": 10,
+      "points": 8
+    },
+    "I": {
+      "label": "零件悬浮信息",
+      "maximum": 12,
+      "points": 7.5
+    },
+    "V": {
+      "label": "材质、剖视与视角",
+      "maximum": 10,
+      "points": 9.5
+    },
+    "D": {
+      "label": "尺寸与间隙",
+      "maximum": 6,
+      "points": 3.1
+    },
+    "P": {
+      "label": "性能与交互稳定性",
+      "maximum": 6,
+      "points": 4.8
+    }
+  },
+  "rawScore": 83.8,
+  "applicableHardCaps": [],
+  "hardCapReview": {
+    "C1": "有真实 WebGL2 3D，不适用。",
+    "C2": "固定验收无持续致命异常，不适用。",
+    "C3": "720°周期及实际径向联动、定长连杆通过；轴向装配偏移计 S2/K2/D3，没有把装配缺陷扩大解释成完全缺少运动联动。",
+    "C4": "凸轮/曲轴 1:2 通过，配气机构确实运动；局部接触缺陷计 K4，不套无配气机构上限。",
+    "C5": "存在可用剖视，不适用。",
+    "C6": "11 类实际表面悬停成功，剖视错选计 I1，不套完全无悬停上限。"
+  },
+  "finalScore": 83.8,
+  "unverifiedAvailablePoints": 0.7,
+  "scoreWithUnverifiedSubcriteriaMaximum": 84.5,
+  "unverifiedBoundary": "Remaining point capacity only for specified D1/P4 subcriteria; not a confidence interval, all-part precision certificate or untested hardware prediction.",
+  "structureAssessment": {
+    "S1": [
+      {
+        "partIds": [
+          "cylinder-block"
+        ],
+        "meshes": 23,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "cylinder-head"
+        ],
+        "meshes": 1,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "oil-pan"
+        ],
+        "meshes": 79,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "flywheel-housing"
+        ],
+        "meshes": 32,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "timing-gear-cover"
+        ],
+        "meshes": 66,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S2": [
+      {
+        "partIds": [
+          "piston"
+        ],
+        "meshes": 12,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "piston-ring-compression-1",
+          "piston-ring-compression-2",
+          "piston-ring-oil"
+        ],
+        "meshes": 12,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "piston-pin"
+        ],
+        "meshes": 4,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "connecting-rod"
+        ],
+        "meshes": 12,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "big-end-bearing-upper",
+          "big-end-bearing-lower"
+        ],
+        "meshes": 8,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": false,
+        "fraction": 0.6666666666666666,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "crankshaft"
+        ],
+        "meshes": 4,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "main-journal"
+        ],
+        "meshes": 5,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": false,
+        "fraction": 0.6666666666666666,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "rod-journal"
+        ],
+        "meshes": 4,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": false,
+        "fraction": 0.6666666666666666,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "counterweight"
+        ],
+        "meshes": 8,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "flywheel"
+        ],
+        "meshes": 3,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S3": [
+      {
+        "partIds": [
+          "camshaft",
+          "cam-lobe-intake",
+          "cam-lobe-exhaust"
+        ],
+        "meshes": 13,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "tappet"
+        ],
+        "meshes": 16,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "pushrod"
+        ],
+        "meshes": 8,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "rocker-arm"
+        ],
+        "meshes": 8,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "valve-intake"
+        ],
+        "meshes": 4,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "valve-exhaust"
+        ],
+        "meshes": 4,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "valve-spring"
+        ],
+        "meshes": 8,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S4": [
+      {
+        "partIds": [
+          "injection-pump"
+        ],
+        "meshes": 85,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "fuel-injector",
+          "injector-nozzle"
+        ],
+        "meshes": 108,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "fuel-filter"
+        ],
+        "meshes": 6,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "high-pressure-line"
+        ],
+        "meshes": 30,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S5": [
+      {
+        "partIds": [
+          "oil-pump"
+        ],
+        "meshes": 19,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "oil-filter"
+        ],
+        "meshes": 7,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "main-oil-gallery"
+        ],
+        "meshes": 15,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "oil-cooler"
+        ],
+        "meshes": 22,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S6": [
+      {
+        "partIds": [
+          "water-pump"
+        ],
+        "meshes": 2,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "thermostat"
+        ],
+        "meshes": 5,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "radiator"
+        ],
+        "meshes": 9,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "water-jacket"
+        ],
+        "meshes": 5,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "coolant-hose-upper",
+          "coolant-hose-lower"
+        ],
+        "meshes": 6,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S7": [
+      {
+        "partIds": [
+          "intake-manifold"
+        ],
+        "meshes": 35,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "exhaust-manifold"
+        ],
+        "meshes": 36,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "intercooler"
+        ],
+        "meshes": 8,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "turbocharger",
+          "turbo-compressor-wheel",
+          "turbo-turbine-wheel"
+        ],
+        "meshes": 28,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ],
+    "S8": [
+      {
+        "partIds": [
+          "head-bolt"
+        ],
+        "meshes": 48,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "front-crankshaft-seal",
+          "rear-crankshaft-seal"
+        ],
+        "meshes": 4,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      },
+      {
+        "partIds": [
+          "head-gasket",
+          "oil-pan-gasket"
+        ],
+        "meshes": 2,
+        "exists": true,
+        "recognizable": true,
+        "assemblyPosition": true,
+        "fraction": 1,
+        "evidence": "geometry-samples.json + source parts module + assembled/section screenshots",
+        "note": "动态接触、流路对应关系另按 K/F 项评价；未验证全部制造细节。"
+      }
+    ]
+  },
+  "hoverPassedPartIds": [
+    "connecting-rod",
+    "crankshaft",
+    "cylinder-block",
+    "fuel-injector",
+    "head-bolt",
+    "head-gasket",
+    "intake-manifold",
+    "oil-filter",
+    "valve-exhaust",
+    "valve-intake",
+    "water-pump"
+  ],
+  "hoverFailedPartIds": [
+    "piston"
+  ],
+  "geometrySummary": {
+    "sampledAngles": 49,
+    "actualCylinders": 4,
+    "maxPistonReferenceErrorMm": 1.1368683772161603e-13,
+    "maxCrankRadialReferenceErrorMm": 1.156679772130055e-13,
+    "labelErrors": [],
+    "directionErrors": [],
+    "rodLengthRangeMm": [
+      215.99999999999997,
+      216.00000000000003
+    ],
+    "maxSmallEndErrorMm": 5.684341886080802e-14,
+    "maxBigEndRadialErrorMm": 5.549516171688151e-14,
+    "bigEndAxialOffsetMm": [
+      -26,
+      -26
+    ],
+    "strokeMm": 127,
+    "camToCrankUnwrappedErrorRad": 0,
+    "unwrappedAt1440": {
+      "cam": -12.566370614359174,
+      "crank": -25.13274122871835
+    },
+    "maxCycleRepeatErrorMm": 0,
+    "actualMaxValveLiftMm": {
+      "intake": 11.149999999999977,
+      "exhaust": 10.25
+    },
+    "maxValveStateErrorMm": 2.6645352591003757e-14,
+    "minimumPistonValveSeparationLowerBoundMm": 1,
+    "pushrodLengthRangeMm": [
+      332,
+      341.1298242432529
+    ],
+    "camTappetPenetrationRangeMm": [
+      -0.0047580035829639655,
+      3.0101429740716696
+    ],
+    "camTappetWorst": {
+      "angle": 1441,
+      "n": 2,
+      "which": "intake",
+      "camSupportY": 144.4959514061036,
+      "tappetBottomY": 141.48580843203192,
+      "penetrationMm": 3.0101429740716696
+    },
+    "maxSpringScaleError": 0,
+    "clockMaxPhaseErrorDeg": 0
+  },
+  "performance": [
+    {
+      "name": "exterior",
+      "section": "off",
+      "view": "free",
+      "rotate": false,
+      "durationSeconds": 30,
+      "meanFps": 101.46666666666667,
+      "minSecondFps": 96,
+      "p95Ms": 16.667,
+      "p99Ms": 16.667,
+      "longFramesOver33_33Ms": 1,
+      "maxIntervalMs": 50
+    },
+    {
+      "name": "section-flows",
+      "section": "halfZ",
+      "view": "section",
+      "rotate": false,
+      "durationSeconds": 30,
+      "meanFps": 113.9,
+      "minSecondFps": 106,
+      "p95Ms": 16.666,
+      "p99Ms": 16.667,
+      "longFramesOver33_33Ms": 0,
+      "maxIntervalMs": 16.667
+    },
+    {
+      "name": "section-flows-rotation",
+      "section": "halfZ",
+      "view": "section",
+      "rotate": true,
+      "durationSeconds": 30,
+      "meanFps": 107.86666666666666,
+      "minSecondFps": 98,
+      "p95Ms": 16.667,
+      "p99Ms": 16.667,
+      "longFramesOver33_33Ms": 0,
+      "maxIntervalMs": 16.667
+    }
+  ],
+  "evidence": {
+    "publicIndex": "../supplement.zh.md",
+    "policy": "Selected measurements and scoring are public. Complete original logs and frozen applications are withheld; see SANITIZATION.md."
+  },
+  "limits": [
+    "单个原题样本，没有官方对照，不证明 APEX 平均提升。",
+    "未测低配 GPU、其它浏览器/操作系统、设备休眠、GPU 丢失恢复。",
+    "制造公差和真实量产机型准确度无参考 CAD，未认证。",
+    "时间模型测量使用原始 frameBody、实际零件更新与受控时钟；该测量不是真实 GPU 帧率。",
+    "几何为固定角度与补充峰值采样，不是连续全场碰撞认证。"
+  ]
+}

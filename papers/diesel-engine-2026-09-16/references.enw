@@ -1,0 +1,49 @@
+%0 Journal Article
+%A Ghareeb, Ali E.
+%A Chang, Benjamin
+%A Mitchener, Ludovico
+%A Yiu, Angela
+%A Szostkiewicz, Caralyn J.
+%A Shved, Dmytro
+%A Gyimesi, Gavin J.
+%A Laurent, Jon M.
+%A Wright, Samantha M.
+%A Razzak, Muhammed T.
+%A White, Andrew D.
+%A Finnemann, Silvia C.
+%A Hinks, Michaela M.
+%A Rodriques, Samuel G.
+%T A multi-agent system for automating scientific discovery
+%J Nature
+%D 2026
+%V 655
+%P 497-505
+%R 10.1038/s41586-026-10652-y
+%U https://www.nature.com/articles/s41586-026-10652-y
+
+%0 Journal Article
+%A Zhou, Lexin
+%A Schellaert, Wout
+%A Martínez-Plumed, Fernando
+%A Moros-Daval, Yael
+%A Ferri, Cèsar
+%A Hernández-Orallo, José
+%T Larger and more instructable language models become less reliable
+%J Nature
+%D 2024
+%V 634
+%P 61-68
+%R 10.1038/s41586-024-07930-y
+%U https://www.nature.com/articles/s41586-024-07930-y
+
+%0 Web Page
+%A U.S. Department of Energy
+%T Internal Combustion Engine Basics
+%U https://www.energy.gov/cmei/vehicles/articles/internal-combustion-engine-basics
+%N Accessed 2026-09-16
+
+%0 Web Page
+%A The Chromium Authors
+%T Debugging janks
+%U https://chromium.googlesource.com/chromium/src/+/main/docs/speed/debug-janks.md
+%N Accessed 2026-09-16

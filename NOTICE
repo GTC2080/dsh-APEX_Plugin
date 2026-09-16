@@ -4,6 +4,28 @@ from the following reviewed sources.
 Code baselines
 --------------
 
+APEX 1.0 uses the official PTC composition and scoped adaptations of the
+model-facing Agent Teams tool definitions from DeepSeek Harness:
+
+  https://github.com/deepseek-ai/deepseek-harness
+  commit 183f08e9c6dde7e36cd2318eaee70b0da08fb35e (v0.1.5-rc.1)
+  packages/preset/agent-presets/presets/ptc/agent.cordis.yml
+  packages/experimental/tool-agent-team/src/index.ts
+
+The native Teams service and Web panel are unchanged peer dependencies.
+APEX changes tool installation scope and collaboration guidance, not the
+native task/mailbox scheduler. Browser protocol helpers derive from this
+repository's prior APEX runtime, without its legacy worker/stage machinery.
+The historical references below remain for attribution; the 1.0 package
+does not ship the old anchored-mode or Pro/Flash routing frameworks.
+
+APEX 1.0 private temporary storage is reviewed against DeepSeek Harness
+commit 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d (v0.1.6-alpha.1).
+It extends the native subprocess, sandbox-local and fs-sandbox providers,
+reuses the native fs-local backend in a confined worker, and follows its
+per-target mutation queue pattern. Native filesystem validation, version
+guards and atomic publication remain in the upstream implementation.
+
 DeepSeek Harness Minimal and Standard agent compositions:
 
   https://github.com/deepseek-ai/deepseek-harness
