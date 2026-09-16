@@ -1,3 +1,15 @@
 node_modules/
 *.tgz
 .DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.log
+*.jsonl
+*.trace
+*.trace.gz
+research/
+tmp/
+.cache/
+__pycache__/

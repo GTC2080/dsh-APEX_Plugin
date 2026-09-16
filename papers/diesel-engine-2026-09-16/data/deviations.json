@@ -1,0 +1,26 @@
+{
+  "kind": "evaluation-side deviations; no model resubmission or artifact intervention",
+  "runtimeWitness": {
+    "inRun": "Missing: original URL.pathname encoded the Chinese path; paid run continued once. Original verification-deviation.json retained.",
+    "firstReplay": "Loaded verifier rejected proxied constructors by direct equality; host stopped normally. No model prompts.",
+    "correctedReplay": "All three exact prototypes and native instanceof confirmed. Cordis createTraceable proxies function properties; Service Symbol.hasInstance explicitly unwraps constructor.prototype.constructor.",
+    "evidence": "supplementary-prototype-check/official-runtime.json",
+    "limit": "Post-hoc replay of composition, not a witness captured inside the paid run. Actual request and effective configuration are complementary evidence."
+  },
+  "export": {
+    "original": "Model and full session tree completed naturally. Export then rejected an internal symlink.",
+    "recovery": "Read-only recovery from already exported history and idle boundary; link target and content hashed; original error retained.",
+    "evidence": [
+      "run/error.json",
+      "export-recovery.json",
+      "run/sample-01/model-result.json"
+    ],
+    "duration": "Reconstructed submission-to-idle duration: 3073885 ms; model turn/end at 3062330 ms."
+  },
+  "preservation": {
+    "official": "26 frozen file entries unchanged, including internal symlink. node_modules excluded as declared.",
+    "apex": "71 original frozen files unchanged; one additional Finder .DS_Store recorded, not deleted.",
+    "evidence": "pre-acceptance-preservation.json"
+  },
+  "launcher": "A zero-prompt verifier command first failed before loading because tsx was resolved outside source cwd; reissued from source. No Host or model submission was started by the failed command."
+}

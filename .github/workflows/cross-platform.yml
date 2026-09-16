@@ -19,5 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.19.0
+          node-version: 24
+      - run: corepack pnpm install --frozen-lockfile --config.auto-install-peers=false --ignore-scripts
       - run: npm run check
+      - run: npm run check:public
+      - run: npm pack --dry-run --json

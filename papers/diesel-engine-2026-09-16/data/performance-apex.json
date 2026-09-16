@@ -1,0 +1,220 @@
+{
+  "arm": "apex",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "deviceScaleFactor": 1,
+  "states": [
+    {
+      "condition": {
+        "name": "exterior",
+        "section": false,
+        "view": "free",
+        "rotate": false
+      },
+      "presented": {
+        "durationSeconds": 30,
+        "frames": 3307,
+        "meanFps": 110.23333333333333,
+        "perSecond": [
+          109,
+          114,
+          116,
+          110,
+          113,
+          111,
+          114,
+          113,
+          107,
+          108,
+          108,
+          112,
+          117,
+          111,
+          107,
+          109,
+          109,
+          105,
+          106,
+          110,
+          107,
+          111,
+          106,
+          110,
+          114,
+          114,
+          110,
+          111,
+          107,
+          108
+        ],
+        "minSecondFps": 105,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0,
+        "maxIntervalMs": 16.667,
+        "leadingGapMs": 15.019,
+        "trailingGapMs": 1.692,
+        "stateCounts": {
+          "STATE_PRESENTED_PARTIAL": 3601,
+          "STATE_PRESENTED_ALL": 3600
+        },
+        "method": "Renderer PipelineReporter begin/end; STATE_PRESENTED_ALL, has_main_animation, no missing content; deduplicated presentation timestamps. Partial and dropped frames excluded."
+      },
+      "sceneUpdated": true,
+      "before": {
+        "app": {
+          "rpm": 2100,
+          "load": 0.9434482758620688
+        }
+      },
+      "after": {
+        "app": {
+          "rpm": 2100,
+          "load": 0.9434482758620688
+        }
+      }
+    },
+    {
+      "condition": {
+        "name": "section-flows",
+        "section": true,
+        "view": "section",
+        "rotate": false
+      },
+      "presented": {
+        "durationSeconds": 30,
+        "frames": 3417,
+        "meanFps": 113.9,
+        "perSecond": [
+          114,
+          118,
+          117,
+          111,
+          120,
+          105,
+          104,
+          120,
+          109,
+          114,
+          115,
+          111,
+          120,
+          120,
+          115,
+          117,
+          116,
+          118,
+          113,
+          113,
+          110,
+          105,
+          112,
+          119,
+          118,
+          112,
+          113,
+          109,
+          116,
+          113
+        ],
+        "minSecondFps": 104,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0,
+        "maxIntervalMs": 16.667,
+        "leadingGapMs": 7.468,
+        "trailingGapMs": 0.911,
+        "stateCounts": {
+          "STATE_PRESENTED_ALL": 3599
+        },
+        "method": "Renderer PipelineReporter begin/end; STATE_PRESENTED_ALL, has_main_animation, no missing content; deduplicated presentation timestamps. Partial and dropped frames excluded."
+      },
+      "sceneUpdated": true,
+      "before": {
+        "app": {
+          "rpm": 2100,
+          "load": 0.9434482758620688
+        }
+      },
+      "after": {
+        "app": {
+          "rpm": 2100,
+          "load": 0.9434482758620688
+        }
+      }
+    },
+    {
+      "condition": {
+        "name": "section-flows-rotation",
+        "section": true,
+        "view": "section",
+        "rotate": true
+      },
+      "presented": {
+        "durationSeconds": 30,
+        "frames": 3547,
+        "meanFps": 118.23333333333333,
+        "perSecond": [
+          119,
+          117,
+          115,
+          118,
+          118,
+          120,
+          120,
+          120,
+          117,
+          114,
+          116,
+          118,
+          119,
+          119,
+          118,
+          117,
+          118,
+          119,
+          120,
+          120,
+          119,
+          118,
+          120,
+          119,
+          118,
+          119,
+          119,
+          120,
+          115,
+          118
+        ],
+        "minSecondFps": 114,
+        "p95Ms": 8.334,
+        "p99Ms": 16.666,
+        "longFramesOver33_33Ms": 0,
+        "maxIntervalMs": 16.667,
+        "leadingGapMs": 7.835,
+        "trailingGapMs": 0.55,
+        "stateCounts": {
+          "STATE_PRESENTED_ALL": 3599,
+          "STATE_PRESENTED_PARTIAL": 3600
+        },
+        "method": "Renderer PipelineReporter begin/end; STATE_PRESENTED_ALL, has_main_animation, no missing content; deduplicated presentation timestamps. Partial and dropped frames excluded."
+      },
+      "sceneUpdated": true,
+      "before": {
+        "app": {
+          "rpm": 2100,
+          "load": 0.9434482758620688
+        }
+      },
+      "after": {
+        "app": {
+          "rpm": 2100,
+          "load": 0.9434482758620688
+        }
+      }
+    }
+  ],
+  "publicDataPolicy": "Exact saved per-second counts and summary statistics. Raw tracing events, process identifiers and absolute trace timestamps omitted."
+}

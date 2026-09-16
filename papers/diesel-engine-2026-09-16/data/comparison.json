@@ -1,0 +1,204 @@
+{
+  "recordedAt": "2026-09-16T12:13:43.613580+00:00",
+  "official": {
+    "finalScore": 40,
+    "rawScore": 72.8,
+    "overallAcceptance": "failed",
+    "durationMs": 3073885,
+    "familySize": 1,
+    "completedSteps": 227,
+    "tokenUsage": {
+      "uncachedInputTokens": 160939,
+      "outputTokens": 265713,
+      "cacheReadTokens": 52739072,
+      "cacheWriteTokens": 0
+    }
+  },
+  "apex": {
+    "finalScore": 83.8,
+    "rawScore": 83.8,
+    "overallAcceptance": "failed",
+    "durationMs": 1604643,
+    "familySize": 6,
+    "completedSteps": 318,
+    "tokenUsage": {
+      "uncachedInputTokens": 451959,
+      "outputTokens": 1229906,
+      "cacheReadTokens": 59977084,
+      "cacheWriteTokens": 0
+    }
+  },
+  "categories": [
+    {
+      "key": "R",
+      "label": "可运行交付",
+      "maximum": 8,
+      "official": 5.5,
+      "apex": 7.5
+    },
+    {
+      "key": "S",
+      "label": "零件与装配",
+      "maximum": 24,
+      "official": 21.7,
+      "apex": 23.4
+    },
+    {
+      "key": "K",
+      "label": "四冲程运动",
+      "maximum": 24,
+      "official": 16.8,
+      "apex": 20.0
+    },
+    {
+      "key": "F",
+      "label": "流动与工况",
+      "maximum": 10,
+      "official": 7.5,
+      "apex": 8
+    },
+    {
+      "key": "I",
+      "label": "零件悬浮信息",
+      "maximum": 12,
+      "official": 7.0,
+      "apex": 7.5
+    },
+    {
+      "key": "V",
+      "label": "材质、剖视与视角",
+      "maximum": 10,
+      "official": 8.5,
+      "apex": 9.5
+    },
+    {
+      "key": "D",
+      "label": "尺寸与间隙",
+      "maximum": 6,
+      "official": 1.6,
+      "apex": 3.1
+    },
+    {
+      "key": "P",
+      "label": "性能与交互稳定性",
+      "maximum": 6,
+      "official": 4.2,
+      "apex": 4.8
+    }
+  ],
+  "matchedPerformance": {
+    "official": [
+      {
+        "name": "exterior",
+        "meanFps": 112.56666666666666,
+        "minSecondFps": 104,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 1,
+        "sceneUpdated": true,
+        "canvas": [
+          1440,
+          900
+        ],
+        "actualRpmBefore": 2033.9670100289143,
+        "actualRpmAfter": 2099.9999999399543
+      },
+      {
+        "name": "section-flows",
+        "meanFps": 111.73333333333333,
+        "minSecondFps": 109,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0,
+        "sceneUpdated": true,
+        "canvas": [
+          1440,
+          900
+        ],
+        "actualRpmBefore": 2031.2196829683414,
+        "actualRpmAfter": 2099.9999999397633
+      },
+      {
+        "name": "section-flows-rotation",
+        "meanFps": 112.93333333333334,
+        "minSecondFps": 108,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0,
+        "sceneUpdated": true,
+        "canvas": [
+          1440,
+          900
+        ],
+        "actualRpmBefore": 2099.999999998505,
+        "actualRpmAfter": 2099.999999999981
+      }
+    ],
+    "apex": [
+      {
+        "name": "exterior",
+        "meanFps": 110.23333333333333,
+        "minSecondFps": 105,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0,
+        "sceneUpdated": true,
+        "canvas": [
+          1440,
+          900
+        ],
+        "actualRpmBefore": 2100,
+        "actualRpmAfter": 2100
+      },
+      {
+        "name": "section-flows",
+        "meanFps": 113.9,
+        "minSecondFps": 104,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0,
+        "sceneUpdated": true,
+        "canvas": [
+          1440,
+          900
+        ],
+        "actualRpmBefore": 2100,
+        "actualRpmAfter": 2100
+      },
+      {
+        "name": "section-flows-rotation",
+        "meanFps": 118.23333333333333,
+        "minSecondFps": 114,
+        "p95Ms": 8.334,
+        "p99Ms": 16.666,
+        "longFramesOver33_33Ms": 0,
+        "sceneUpdated": true,
+        "canvas": [
+          1440,
+          900
+        ],
+        "actualRpmBefore": 2100,
+        "actualRpmAfter": 2100
+      }
+    ]
+  },
+  "differences": {
+    "finalScoreApexMinusOfficial": 43.8,
+    "rawScoreApexMinusOfficial": 11.0,
+    "durationRatioApexOverOfficial": 0.5220244088506889,
+    "usageRatiosApexOverOfficial": {
+      "uncachedInputTokens": 2.8082627579393433,
+      "outputTokens": 4.6287008915634535,
+      "cacheReadTokens": 1.137241929474982,
+      "cacheWriteTokens": null
+    }
+  },
+  "sensitivity": {
+    "withoutC2Official": 55,
+    "withoutAnyCapOfficial": 72.8,
+    "apexOriginalUnchanged": 83.8,
+    "apexUsingMatchedPerformanceP2": 84.8,
+    "apexMatchedPerformanceNote": "Only P2 +1 based on new trace; background recovery still unverified. This is a supplementary score, not a replacement of the original 83.8."
+  },
+  "inference": "Descriptive single-task system comparison, not a general or causal capability gain estimate."
+}

@@ -1,28 +1,22 @@
 {
-  "name": "dsh-minimal-max",
-  "version": "0.6.3",
-  "description": "General APEX preset with a Minimal Pro anchor, role-bounded PTC implementation, verified handoffs, and evidence convergence",
+  "name": "dsh-apex",
+  "version": "1.0.0",
+  "description": "APEX 1.0: native PTC, scoped Agent Teams and generic browser evidence for DeepSeek Harness v0.1.6-alpha.1",
   "type": "module",
-  "main": "index.js",
+  "main": "apex.js",
   "exports": {
-    ".": "./index.js"
+    ".": "./apex.js",
+    "./apex-v1/*": "./presets/apex-v1/*.mjs"
   },
   "files": [
-    "index.js",
+    "apex.js",
     "cordis.patch.yml",
-    "presets/v2",
-    "presets/apex-v03",
-    "presets/apex-v04",
-    "presets/apex-v041",
-    "presets/apex-v05",
-    "presets/apex-v051",
-    "presets/apex-v06",
-    "presets/apex-v061",
-    "presets/apex-v062",
-    "presets/apex-v063",
+    "presets/apex-v1",
     "README.md",
+    "docs/APEX-1.0.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "docs/PUBLICATION.md"
   ],
   "dsh": {
     "bundle": {
@@ -32,9 +26,13 @@
   "engines": {
     "node": ">=22.19.0"
   },
+  "dependencies": {
+    "zod": "4.5.4"
+  },
   "scripts": {
-    "check": "node --test",
-    "test": "node --test"
+    "check": "node --test test/apex-v1-*.test.mjs",
+    "test": "node --test test/apex-v1-*.test.mjs",
+    "check:public": "node scripts/check-publication.mjs"
   },
   "keywords": [
     "deepseek",
@@ -44,5 +42,14 @@
     "apex",
     "ponytail"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-experimental-agent-team": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "0.1.6-alpha.1"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GTC2080/dsh-APEX_Plugin.git"
+  }
 }

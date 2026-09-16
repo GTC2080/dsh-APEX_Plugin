@@ -1,0 +1,875 @@
+{
+  "method": "Derived only from saved actual browser mesh measurements; angle sampling is repeated measurement of one artifact, not independent model runs.",
+  "strokeMm": [
+    105.0,
+    105.0,
+    105.0,
+    105.0
+  ],
+  "maxCamCenterTranslationMm": 480.0,
+  "camOrbitRadiusMm": 240.00000000000006,
+  "maxCamRatioAngleErrorRad": 0.0,
+  "cyclePairs": [
+    {
+      "angle": 0,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 5.1435165564188825e-14
+    },
+    {
+      "angle": 45,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 1.4210854715202004e-13
+    },
+    {
+      "angle": 90,
+      "maxPistonCenterDifferenceMm": 1.1368683772161603e-13,
+      "maxRodCenterDifferenceMm": 1.1897631685060756e-13
+    },
+    {
+      "angle": 135,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 1.9328852131274408e-13
+    },
+    {
+      "angle": 179,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 4.218847493575595e-14
+    },
+    {
+      "angle": 180,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 5.1435165564188825e-14
+    },
+    {
+      "angle": 181,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 1.4455103780619538e-13
+    },
+    {
+      "angle": 225,
+      "maxPistonCenterDifferenceMm": 1.1368683772161603e-13,
+      "maxRodCenterDifferenceMm": 2.669977196213713e-13
+    },
+    {
+      "angle": 270,
+      "maxPistonCenterDifferenceMm": 5.684341886080802e-14,
+      "maxRodCenterDifferenceMm": 1.1368683772161603e-13
+    },
+    {
+      "angle": 315,
+      "maxPistonCenterDifferenceMm": 1.1368683772161603e-13,
+      "maxRodCenterDifferenceMm": 1.2710574864626038e-13
+    },
+    {
+      "angle": 359,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 1.3522516439934407e-13
+    },
+    {
+      "angle": 360,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 5.1435165564188844e-14
+    },
+    {
+      "angle": 361,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 3.2174263253637037e-13
+    },
+    {
+      "angle": 405,
+      "maxPistonCenterDifferenceMm": 5.684341886080802e-14,
+      "maxRodCenterDifferenceMm": 1.1457157353758233e-13
+    },
+    {
+      "angle": 450,
+      "maxPistonCenterDifferenceMm": 5.684341886080802e-14,
+      "maxRodCenterDifferenceMm": 1.1368683772161603e-13
+    },
+    {
+      "angle": 495,
+      "maxPistonCenterDifferenceMm": 1.7053025658242404e-13,
+      "maxRodCenterDifferenceMm": 1.9328852131274408e-13
+    },
+    {
+      "angle": 539,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 5.1958437552457326e-14
+    },
+    {
+      "angle": 540,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 5.1435165564188844e-14
+    },
+    {
+      "angle": 541,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 2.382538610845586e-13
+    },
+    {
+      "angle": 585,
+      "maxPistonCenterDifferenceMm": 5.684341886080802e-14,
+      "maxRodCenterDifferenceMm": 6.355287432313019e-14
+    },
+    {
+      "angle": 630,
+      "maxPistonCenterDifferenceMm": 5.684341886080802e-14,
+      "maxRodCenterDifferenceMm": 6.754115128641874e-14
+    },
+    {
+      "angle": 675,
+      "maxPistonCenterDifferenceMm": 1.7053025658242404e-13,
+      "maxRodCenterDifferenceMm": 1.9328852131274408e-13
+    },
+    {
+      "angle": 719,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 4.247713292215849e-13
+    },
+    {
+      "angle": 720,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 5.143516556418884e-14
+    },
+    {
+      "angle": 721,
+      "maxPistonCenterDifferenceMm": 0.0,
+      "maxRodCenterDifferenceMm": 3.219646771412954e-13
+    }
+  ],
+  "interiorDirections": [
+    {
+      "angle": 45,
+      "cyl": 1,
+      "deltaYmm": -55.87517291734389,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 45,
+      "cyl": 2,
+      "deltaYmm": 49.12482708265611,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 45,
+      "cyl": 3,
+      "deltaYmm": 49.12482708265611,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 45,
+      "cyl": 4,
+      "deltaYmm": -55.87517291734389,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 90,
+      "cyl": 1,
+      "deltaYmm": -74.24621202458758,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 90,
+      "cyl": 2,
+      "deltaYmm": 74.24621202458758,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 90,
+      "cyl": 3,
+      "deltaYmm": 74.24621202458758,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 90,
+      "cyl": 4,
+      "deltaYmm": -74.24621202458758,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 135,
+      "cyl": 1,
+      "deltaYmm": -49.11785488027209,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 135,
+      "cyl": 2,
+      "deltaYmm": 55.86615311114906,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 135,
+      "cyl": 3,
+      "deltaYmm": 55.86615311114906,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 135,
+      "cyl": 4,
+      "deltaYmm": -49.11785488027209,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 225,
+      "cyl": 1,
+      "deltaYmm": 49.11785488027209,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 225,
+      "cyl": 2,
+      "deltaYmm": -55.86615311114906,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 225,
+      "cyl": 3,
+      "deltaYmm": -55.86615311114906,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 225,
+      "cyl": 4,
+      "deltaYmm": 49.11785488027209,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 270,
+      "cyl": 1,
+      "deltaYmm": 74.24621202458758,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 270,
+      "cyl": 2,
+      "deltaYmm": -74.24621202458752,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 270,
+      "cyl": 3,
+      "deltaYmm": -74.24621202458752,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 270,
+      "cyl": 4,
+      "deltaYmm": 74.24621202458758,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 315,
+      "cyl": 1,
+      "deltaYmm": 55.86615311114906,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 315,
+      "cyl": 2,
+      "deltaYmm": -49.11785488027209,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 315,
+      "cyl": 3,
+      "deltaYmm": -49.11785488027209,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 315,
+      "cyl": 4,
+      "deltaYmm": 55.86615311114906,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 405,
+      "cyl": 1,
+      "deltaYmm": -55.86615311114906,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 405,
+      "cyl": 2,
+      "deltaYmm": 49.11785488027209,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 405,
+      "cyl": 3,
+      "deltaYmm": 49.11785488027209,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 405,
+      "cyl": 4,
+      "deltaYmm": -55.86615311114906,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 450,
+      "cyl": 1,
+      "deltaYmm": -74.24621202458758,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 450,
+      "cyl": 2,
+      "deltaYmm": 74.24621202458763,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 450,
+      "cyl": 3,
+      "deltaYmm": 74.24621202458763,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 450,
+      "cyl": 4,
+      "deltaYmm": -74.24621202458758,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 495,
+      "cyl": 1,
+      "deltaYmm": -49.11785488027209,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 495,
+      "cyl": 2,
+      "deltaYmm": 55.86615311114906,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 495,
+      "cyl": 3,
+      "deltaYmm": 55.86615311114906,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 495,
+      "cyl": 4,
+      "deltaYmm": -49.11785488027209,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 585,
+      "cyl": 1,
+      "deltaYmm": 49.11785488027209,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 585,
+      "cyl": 2,
+      "deltaYmm": -55.866153111149,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 585,
+      "cyl": 3,
+      "deltaYmm": -55.866153111149,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 585,
+      "cyl": 4,
+      "deltaYmm": 49.11785488027209,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 630,
+      "cyl": 1,
+      "deltaYmm": 74.24621202458752,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 630,
+      "cyl": 2,
+      "deltaYmm": -74.24621202458758,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 630,
+      "cyl": 3,
+      "deltaYmm": -74.24621202458758,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 630,
+      "cyl": 4,
+      "deltaYmm": 74.24621202458752,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 675,
+      "cyl": 1,
+      "deltaYmm": 55.86615311114906,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 675,
+      "cyl": 2,
+      "deltaYmm": -49.11785488027215,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 675,
+      "cyl": 3,
+      "deltaYmm": -49.11785488027215,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 675,
+      "cyl": 4,
+      "deltaYmm": 55.86615311114906,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 765,
+      "cyl": 1,
+      "deltaYmm": -55.866153111149,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 765,
+      "cyl": 2,
+      "deltaYmm": 49.11785488027198,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 765,
+      "cyl": 3,
+      "deltaYmm": 49.11785488027198,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 765,
+      "cyl": 4,
+      "deltaYmm": -55.866153111149,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 810,
+      "cyl": 1,
+      "deltaYmm": -74.24621202458758,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 810,
+      "cyl": 2,
+      "deltaYmm": 74.24621202458758,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 810,
+      "cyl": 3,
+      "deltaYmm": 74.24621202458758,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 810,
+      "cyl": 4,
+      "deltaYmm": -74.24621202458758,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 855,
+      "cyl": 1,
+      "deltaYmm": -49.11785488027215,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 855,
+      "cyl": 2,
+      "deltaYmm": 55.866153111149174,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 855,
+      "cyl": 3,
+      "deltaYmm": 55.866153111149174,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 855,
+      "cyl": 4,
+      "deltaYmm": -49.11785488027215,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 945,
+      "cyl": 1,
+      "deltaYmm": 49.11785488027215,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 945,
+      "cyl": 2,
+      "deltaYmm": -55.86615311114906,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 945,
+      "cyl": 3,
+      "deltaYmm": -55.86615311114906,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 945,
+      "cyl": 4,
+      "deltaYmm": 49.11785488027215,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 990,
+      "cyl": 1,
+      "deltaYmm": 74.24621202458758,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 990,
+      "cyl": 2,
+      "deltaYmm": -74.24621202458758,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 990,
+      "cyl": 3,
+      "deltaYmm": -74.24621202458758,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 990,
+      "cyl": 4,
+      "deltaYmm": 74.24621202458758,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1035,
+      "cyl": 1,
+      "deltaYmm": 55.866153111149,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1035,
+      "cyl": 2,
+      "deltaYmm": -49.11785488027209,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 1035,
+      "cyl": 3,
+      "deltaYmm": -49.11785488027209,
+      "stage": "intake",
+      "passed": true
+    },
+    {
+      "angle": 1035,
+      "cyl": 4,
+      "deltaYmm": 55.866153111149,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1125,
+      "cyl": 1,
+      "deltaYmm": -55.86615311114906,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1125,
+      "cyl": 2,
+      "deltaYmm": 49.11785488027215,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1125,
+      "cyl": 3,
+      "deltaYmm": 49.11785488027215,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1125,
+      "cyl": 4,
+      "deltaYmm": -55.86615311114906,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1170,
+      "cyl": 1,
+      "deltaYmm": -74.24621202458752,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1170,
+      "cyl": 2,
+      "deltaYmm": 74.24621202458741,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1170,
+      "cyl": 3,
+      "deltaYmm": 74.24621202458741,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1170,
+      "cyl": 4,
+      "deltaYmm": -74.24621202458752,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1215,
+      "cyl": 1,
+      "deltaYmm": -49.11785488027209,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1215,
+      "cyl": 2,
+      "deltaYmm": 55.866153111149,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1215,
+      "cyl": 3,
+      "deltaYmm": 55.866153111149,
+      "stage": "compression",
+      "passed": true
+    },
+    {
+      "angle": 1215,
+      "cyl": 4,
+      "deltaYmm": -49.11785488027209,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1305,
+      "cyl": 1,
+      "deltaYmm": 49.11785488027215,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 1305,
+      "cyl": 2,
+      "deltaYmm": -55.86615311114906,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1305,
+      "cyl": 3,
+      "deltaYmm": -55.86615311114906,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1305,
+      "cyl": 4,
+      "deltaYmm": 49.11785488027215,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 1350,
+      "cyl": 1,
+      "deltaYmm": 74.24621202458741,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 1350,
+      "cyl": 2,
+      "deltaYmm": -74.24621202458746,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1350,
+      "cyl": 3,
+      "deltaYmm": -74.24621202458746,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1350,
+      "cyl": 4,
+      "deltaYmm": 74.24621202458741,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 1395,
+      "cyl": 1,
+      "deltaYmm": 55.866153111149,
+      "stage": "exhaust",
+      "passed": true
+    },
+    {
+      "angle": 1395,
+      "cyl": 2,
+      "deltaYmm": -49.11785488027209,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1395,
+      "cyl": 3,
+      "deltaYmm": -49.11785488027209,
+      "stage": "power",
+      "passed": true
+    },
+    {
+      "angle": 1395,
+      "cyl": 4,
+      "deltaYmm": 55.866153111149,
+      "stage": "exhaust",
+      "passed": true
+    }
+  ],
+  "pushrodBodyLengthRangeMm": [
+    767.151562527104,
+    774
+  ],
+  "valveActualXZmm": [
+    [
+      0,
+      0
+    ]
+  ],
+  "valvePhaseCounterexamples": [
+    {
+      "globalCrankAngle": 405,
+      "cylinder": 3,
+      "reportedAngle": 225,
+      "reportedStage": "compression",
+      "valves": [
+        [
+          "intake",
+          5.415419045284337
+        ],
+        [
+          "exhaust",
+          0
+        ]
+      ]
+    },
+    {
+      "globalCrankAngle": 405,
+      "cylinder": 4,
+      "reportedAngle": 405,
+      "reportedStage": "power",
+      "valves": [
+        [
+          "intake",
+          0
+        ],
+        [
+          "exhaust",
+          8.962675548828813
+        ]
+      ]
+    }
+  ],
+  "summary": {
+    "angleCount": 49,
+    "cylinderSamples": 196,
+    "inventoryTypes": 62,
+    "maxSmallPinGapMm": 104.99999999999999,
+    "maxBigPinGapMm": 9.42055475210265e-14,
+    "minRodLengthMm": 409.99999999999994,
+    "maxRodLengthMm": 410.00000000000006,
+    "minBigPinAxisAbsDot": 1.882527673165576e-33,
+    "maxBigPinAxisAbsDot": 2.202167050787258e-16,
+    "minCamTappetAabbSeparationMm": 0,
+    "maxCamTappetAabbSeparationMm": 418.33568557073625,
+    "curveSamples": 77,
+    "curveAbovePoint1": 53
+  },
+  "sealedGasDomainCompressionRatio": "not-verified",
+  "curveDiscretization": "24/77 sampled circular sections <= 0.1 mm. Mesh segmentation differs from APEX; not a task success rate.",
+  "flowJunctionDistanceLimit": "Nearest distances in geometry.json use 300 intervals and are discrete approximations; no exact continuous curve distance or fluid continuity claim."
+}

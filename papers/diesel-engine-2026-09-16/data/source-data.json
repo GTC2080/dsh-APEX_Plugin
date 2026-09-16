@@ -1,0 +1,1234 @@
+{
+  "scope": "One generation per arm; within-artifact samples are not independent generations.",
+  "figure1": {
+    "comparison": {
+      "recordedAt": "2026-09-16T12:13:43.613580+00:00",
+      "official": {
+        "finalScore": 40,
+        "rawScore": 72.8,
+        "overallAcceptance": "failed",
+        "durationMs": 3073885,
+        "familySize": 1,
+        "completedSteps": 227,
+        "tokenUsage": {
+          "uncachedInputTokens": 160939,
+          "outputTokens": 265713,
+          "cacheReadTokens": 52739072,
+          "cacheWriteTokens": 0
+        }
+      },
+      "apex": {
+        "finalScore": 83.8,
+        "rawScore": 83.8,
+        "overallAcceptance": "failed",
+        "durationMs": 1604643,
+        "familySize": 6,
+        "completedSteps": 318,
+        "tokenUsage": {
+          "uncachedInputTokens": 451959,
+          "outputTokens": 1229906,
+          "cacheReadTokens": 59977084,
+          "cacheWriteTokens": 0
+        }
+      },
+      "categories": [
+        {
+          "key": "R",
+          "label": "可运行交付",
+          "maximum": 8,
+          "official": 5.5,
+          "apex": 7.5
+        },
+        {
+          "key": "S",
+          "label": "零件与装配",
+          "maximum": 24,
+          "official": 21.7,
+          "apex": 23.4
+        },
+        {
+          "key": "K",
+          "label": "四冲程运动",
+          "maximum": 24,
+          "official": 16.8,
+          "apex": 20.0
+        },
+        {
+          "key": "F",
+          "label": "流动与工况",
+          "maximum": 10,
+          "official": 7.5,
+          "apex": 8
+        },
+        {
+          "key": "I",
+          "label": "零件悬浮信息",
+          "maximum": 12,
+          "official": 7.0,
+          "apex": 7.5
+        },
+        {
+          "key": "V",
+          "label": "材质、剖视与视角",
+          "maximum": 10,
+          "official": 8.5,
+          "apex": 9.5
+        },
+        {
+          "key": "D",
+          "label": "尺寸与间隙",
+          "maximum": 6,
+          "official": 1.6,
+          "apex": 3.1
+        },
+        {
+          "key": "P",
+          "label": "性能与交互稳定性",
+          "maximum": 6,
+          "official": 4.2,
+          "apex": 4.8
+        }
+      ],
+      "matchedPerformance": {
+        "official": [
+          {
+            "name": "exterior",
+            "meanFps": 112.56666666666666,
+            "minSecondFps": 104,
+            "p95Ms": 16.666,
+            "p99Ms": 16.667,
+            "longFramesOver33_33Ms": 1,
+            "sceneUpdated": true,
+            "canvas": [
+              1440,
+              900
+            ],
+            "actualRpmBefore": 2033.9670100289143,
+            "actualRpmAfter": 2099.9999999399543
+          },
+          {
+            "name": "section-flows",
+            "meanFps": 111.73333333333333,
+            "minSecondFps": 109,
+            "p95Ms": 16.666,
+            "p99Ms": 16.667,
+            "longFramesOver33_33Ms": 0,
+            "sceneUpdated": true,
+            "canvas": [
+              1440,
+              900
+            ],
+            "actualRpmBefore": 2031.2196829683414,
+            "actualRpmAfter": 2099.9999999397633
+          },
+          {
+            "name": "section-flows-rotation",
+            "meanFps": 112.93333333333334,
+            "minSecondFps": 108,
+            "p95Ms": 16.666,
+            "p99Ms": 16.667,
+            "longFramesOver33_33Ms": 0,
+            "sceneUpdated": true,
+            "canvas": [
+              1440,
+              900
+            ],
+            "actualRpmBefore": 2099.999999998505,
+            "actualRpmAfter": 2099.999999999981
+          }
+        ],
+        "apex": [
+          {
+            "name": "exterior",
+            "meanFps": 110.23333333333333,
+            "minSecondFps": 105,
+            "p95Ms": 16.666,
+            "p99Ms": 16.667,
+            "longFramesOver33_33Ms": 0,
+            "sceneUpdated": true,
+            "canvas": [
+              1440,
+              900
+            ],
+            "actualRpmBefore": 2100,
+            "actualRpmAfter": 2100
+          },
+          {
+            "name": "section-flows",
+            "meanFps": 113.9,
+            "minSecondFps": 104,
+            "p95Ms": 16.666,
+            "p99Ms": 16.667,
+            "longFramesOver33_33Ms": 0,
+            "sceneUpdated": true,
+            "canvas": [
+              1440,
+              900
+            ],
+            "actualRpmBefore": 2100,
+            "actualRpmAfter": 2100
+          },
+          {
+            "name": "section-flows-rotation",
+            "meanFps": 118.23333333333333,
+            "minSecondFps": 114,
+            "p95Ms": 8.334,
+            "p99Ms": 16.666,
+            "longFramesOver33_33Ms": 0,
+            "sceneUpdated": true,
+            "canvas": [
+              1440,
+              900
+            ],
+            "actualRpmBefore": 2100,
+            "actualRpmAfter": 2100
+          }
+        ]
+      },
+      "differences": {
+        "finalScoreApexMinusOfficial": 43.8,
+        "rawScoreApexMinusOfficial": 11.0,
+        "durationRatioApexOverOfficial": 0.5220244088506889,
+        "usageRatiosApexOverOfficial": {
+          "uncachedInputTokens": 2.8082627579393433,
+          "outputTokens": 4.6287008915634535,
+          "cacheReadTokens": 1.137241929474982,
+          "cacheWriteTokens": null
+        }
+      },
+      "sensitivity": {
+        "withoutC2Official": 55,
+        "withoutAnyCapOfficial": 72.8,
+        "apexOriginalUnchanged": 83.8,
+        "apexUsingMatchedPerformanceP2": 84.8,
+        "apexMatchedPerformanceNote": "Only P2 +1 based on new trace; background recovery still unverified. This is a supplementary score, not a replacement of the original 83.8."
+      },
+      "inference": "Descriptive single-task system comparison, not a general or causal capability gain estimate."
+    }
+  },
+  "figure2": {
+    "native90DegreesCylinder1": {
+      "rodBig": [
+        0,
+        3.2146978477618016e-15,
+        52.5
+      ],
+      "rodSmall": [
+        0,
+        406.6248270826561,
+        104.99999999999999
+      ],
+      "pistonPin": [
+        0,
+        406.6248270826561,
+        0
+      ]
+    },
+    "connectionDistances": [
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 0,
+        "maxDistanceMm": 4.623311344794983e-14
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 45,
+        "maxDistanceMm": 74.24621202458748
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 90,
+        "maxDistanceMm": 104.99999999999999
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 135,
+        "maxDistanceMm": 74.24621202458749
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 179,
+        "maxDistanceMm": 1.8325026759147738
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 180,
+        "maxDistanceMm": 4.623311344794983e-14
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 181,
+        "maxDistanceMm": 1.832502675914735
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 225,
+        "maxDistanceMm": 74.24621202458748
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 270,
+        "maxDistanceMm": 104.99999999999999
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 315,
+        "maxDistanceMm": 74.24621202458756
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 359,
+        "maxDistanceMm": 1.83250267591488
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 360,
+        "maxDistanceMm": 5.882422041471316e-14
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 361,
+        "maxDistanceMm": 1.8325026759147225
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 405,
+        "maxDistanceMm": 74.24621202458741
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 450,
+        "maxDistanceMm": 104.99999999999999
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 495,
+        "maxDistanceMm": 74.24621202458745
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 539,
+        "maxDistanceMm": 1.8325026759147058
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 540,
+        "maxDistanceMm": 5.882422041471316e-14
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 541,
+        "maxDistanceMm": 1.8325026759148026
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 585,
+        "maxDistanceMm": 74.24621202458752
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 630,
+        "maxDistanceMm": 104.99999999999999
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 675,
+        "maxDistanceMm": 74.24621202458748
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 719,
+        "maxDistanceMm": 1.832502675914719
+      },
+      {
+        "arm": "official",
+        "end": "small",
+        "angleDeg": 720,
+        "maxDistanceMm": 7.814003560284749e-14
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 0,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 45,
+        "maxDistanceMm": 1.2412670766236365e-14
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 90,
+        "maxDistanceMm": 8.442643910802343e-15
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 135,
+        "maxDistanceMm": 7.850462293418876e-15
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 179,
+        "maxDistanceMm": 1.734723475976807e-16
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 180,
+        "maxDistanceMm": 1.232595164407831e-30
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 181,
+        "maxDistanceMm": 1.734723475976807e-16
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 225,
+        "maxDistanceMm": 1.2412670766236365e-14
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 270,
+        "maxDistanceMm": 2.0132482152787385e-15
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 315,
+        "maxDistanceMm": 3.925231146709438e-14
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 359,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 360,
+        "maxDistanceMm": 2.465190328815662e-30
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 361,
+        "maxDistanceMm": 4.666406150377611e-14
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 405,
+        "maxDistanceMm": 5.551115123125783e-15
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 450,
+        "maxDistanceMm": 1.1948300088634205e-14
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 495,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 539,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 540,
+        "maxDistanceMm": 2.465190328815662e-30
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 541,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 585,
+        "maxDistanceMm": 5.551115123125783e-15
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 630,
+        "maxDistanceMm": 8.117985827956743e-16
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 675,
+        "maxDistanceMm": 5.551115123125783e-15
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 719,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "official",
+        "end": "big",
+        "angleDeg": 720,
+        "maxDistanceMm": 4.930380657631324e-30
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 0,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 45,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 90,
+        "maxDistanceMm": 2.929642751054232e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 135,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 179,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 180,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 181,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 225,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 270,
+        "maxDistanceMm": 2.929642751054232e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 315,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 359,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 360,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 361,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 405,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 450,
+        "maxDistanceMm": 2.929642751054232e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 495,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 539,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 540,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 541,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 585,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 630,
+        "maxDistanceMm": 2.929642751054232e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 675,
+        "maxDistanceMm": 7.105427357601002e-15
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 719,
+        "maxDistanceMm": 5.684341886080802e-14
+      },
+      {
+        "arm": "apex",
+        "end": "small",
+        "angleDeg": 720,
+        "maxDistanceMm": 0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 0,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 45,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 90,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 135,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 179,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 180,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 181,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 225,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 270,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 315,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 359,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 360,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 361,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 405,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 450,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 495,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 539,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 540,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 541,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 585,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 630,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 675,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 719,
+        "maxDistanceMm": 26.0
+      },
+      {
+        "arm": "apex",
+        "end": "big",
+        "angleDeg": 720,
+        "maxDistanceMm": 26.0
+      }
+    ],
+    "nativeCamCentresMm": [
+      [
+        172.5,
+        -240,
+        0
+      ],
+      [
+        172.5,
+        -221.73108780270883,
+        -91.84402376762152
+      ],
+      [
+        172.5,
+        -169.70562748477138,
+        -169.7056274847714
+      ],
+      [
+        172.5,
+        -91.84402376762155,
+        -221.73108780270877
+      ],
+      [
+        172.5,
+        -2.0943685196097306,
+        -239.9908615354011
+      ],
+      [
+        172.5,
+        -5.3290705182007514e-14,
+        -240
+      ],
+      [
+        172.5,
+        2.094368519609677,
+        -239.99086153540108
+      ],
+      [
+        172.5,
+        91.84402376762155,
+        -221.73108780270883
+      ],
+      [
+        172.5,
+        169.70562748477138,
+        -169.70562748477144
+      ],
+      [
+        172.5,
+        221.73108780270883,
+        -91.84402376762158
+      ],
+      [
+        172.5,
+        239.99086153540108,
+        -2.0943685196098563
+      ],
+      [
+        172.5,
+        240,
+        -2.9391523179536473e-14
+      ],
+      [
+        172.5,
+        239.99086153540108,
+        2.094368519609691
+      ],
+      [
+        172.5,
+        221.7310878027089,
+        91.84402376762141
+      ],
+      [
+        172.5,
+        169.70562748477138,
+        169.70562748477138
+      ],
+      [
+        172.5,
+        91.84402376762145,
+        221.73108780270883
+      ],
+      [
+        172.5,
+        2.094368519609677,
+        239.9908615354011
+      ],
+      [
+        172.5,
+        5.3290705182007514e-14,
+        240
+      ],
+      [
+        172.5,
+        -2.09436851960981,
+        239.99086153540108
+      ],
+      [
+        172.5,
+        -91.84402376762155,
+        221.73108780270883
+      ],
+      [
+        172.5,
+        -169.70562748477136,
+        169.70562748477144
+      ],
+      [
+        172.5,
+        -221.73108780270883,
+        91.84402376762148
+      ],
+      [
+        172.5,
+        -239.9908615354011,
+        2.0943685196096724
+      ],
+      [
+        172.5,
+        -240,
+        5.878304635907295e-14
+      ]
+    ],
+    "selectionSamples": [
+      {
+        "at": 2488,
+        "frame": 165,
+        "phase": 699.6404636370864,
+        "selected": null,
+        "visible": "visible"
+      },
+      {
+        "at": 3490.199999988079,
+        "frame": 225,
+        "phase": 107.14975909236591,
+        "selected": null,
+        "visible": "visible"
+      },
+      {
+        "at": 3889.5,
+        "frame": 234,
+        "phase": 319.4440352337256,
+        "selected": "piston",
+        "visible": "visible"
+      },
+      {
+        "at": 5092.099999964237,
+        "frame": 234,
+        "phase": 268.69937881032297,
+        "selected": "piston",
+        "visible": "visible"
+      }
+    ]
+  },
+  "figure3": {
+    "official": [
+      {
+        "condition": {
+          "name": "exterior",
+          "section": false,
+          "view": "free",
+          "rotate": false
+        },
+        "beforeRpm": 2033.9670100289143,
+        "perSecond": [
+          113,
+          119,
+          115,
+          118,
+          112,
+          114,
+          110,
+          111,
+          108,
+          114,
+          115,
+          108,
+          109,
+          104,
+          117,
+          118,
+          118,
+          115,
+          108,
+          114,
+          110,
+          111,
+          114,
+          111,
+          112,
+          111,
+          117,
+          109,
+          113,
+          109
+        ],
+        "meanFps": 112.56666666666666,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 1
+      },
+      {
+        "condition": {
+          "name": "section-flows",
+          "section": true,
+          "view": "section",
+          "rotate": false
+        },
+        "beforeRpm": 2031.2196829683414,
+        "perSecond": [
+          109,
+          113,
+          110,
+          112,
+          114,
+          110,
+          114,
+          112,
+          112,
+          110,
+          111,
+          111,
+          111,
+          114,
+          112,
+          110,
+          112,
+          111,
+          113,
+          111,
+          109,
+          111,
+          115,
+          113,
+          115,
+          115,
+          112,
+          109,
+          112,
+          109
+        ],
+        "meanFps": 111.73333333333333,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0
+      },
+      {
+        "condition": {
+          "name": "section-flows-rotation",
+          "section": true,
+          "view": "section",
+          "rotate": true
+        },
+        "beforeRpm": 2099.999999998505,
+        "perSecond": [
+          109,
+          109,
+          114,
+          110,
+          108,
+          117,
+          113,
+          117,
+          110,
+          110,
+          112,
+          118,
+          115,
+          111,
+          114,
+          116,
+          118,
+          112,
+          109,
+          111,
+          112,
+          113,
+          113,
+          117,
+          117,
+          114,
+          112,
+          114,
+          111,
+          112
+        ],
+        "meanFps": 112.93333333333334,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0
+      }
+    ],
+    "apex": [
+      {
+        "condition": {
+          "name": "exterior",
+          "section": false,
+          "view": "free",
+          "rotate": false
+        },
+        "beforeRpm": 2100,
+        "perSecond": [
+          109,
+          114,
+          116,
+          110,
+          113,
+          111,
+          114,
+          113,
+          107,
+          108,
+          108,
+          112,
+          117,
+          111,
+          107,
+          109,
+          109,
+          105,
+          106,
+          110,
+          107,
+          111,
+          106,
+          110,
+          114,
+          114,
+          110,
+          111,
+          107,
+          108
+        ],
+        "meanFps": 110.23333333333333,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0
+      },
+      {
+        "condition": {
+          "name": "section-flows",
+          "section": true,
+          "view": "section",
+          "rotate": false
+        },
+        "beforeRpm": 2100,
+        "perSecond": [
+          114,
+          118,
+          117,
+          111,
+          120,
+          105,
+          104,
+          120,
+          109,
+          114,
+          115,
+          111,
+          120,
+          120,
+          115,
+          117,
+          116,
+          118,
+          113,
+          113,
+          110,
+          105,
+          112,
+          119,
+          118,
+          112,
+          113,
+          109,
+          116,
+          113
+        ],
+        "meanFps": 113.9,
+        "p95Ms": 16.666,
+        "p99Ms": 16.667,
+        "longFramesOver33_33Ms": 0
+      },
+      {
+        "condition": {
+          "name": "section-flows-rotation",
+          "section": true,
+          "view": "section",
+          "rotate": true
+        },
+        "beforeRpm": 2100,
+        "perSecond": [
+          119,
+          117,
+          115,
+          118,
+          118,
+          120,
+          120,
+          120,
+          117,
+          114,
+          116,
+          118,
+          119,
+          119,
+          118,
+          117,
+          118,
+          119,
+          120,
+          120,
+          119,
+          118,
+          120,
+          119,
+          118,
+          119,
+          119,
+          120,
+          115,
+          118
+        ],
+        "meanFps": 118.23333333333333,
+        "p95Ms": 8.334,
+        "p99Ms": 16.666,
+        "longFramesOver33_33Ms": 0
+      }
+    ]
+  }
+}

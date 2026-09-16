@@ -1,0 +1,13 @@
+{
+  "inputsSha256": {
+    "comparison.json": "a58f5e2c417c46e7dab26e787a36849246314e5131f8db415102ce2f06340c6f",
+    "geometry-native.json": "b90cd269b52afa5438274fe19fea1b430b2f54bc99534721fd0211c787663358",
+    "geometry-apex.json": "91a7404159df41aa8a7876cd1a77177daa6b566742dbbcd6e9f5004adde40ac5",
+    "interaction-native.json": "ff47c12e54b8c378c404330bc179998e967f190df2c9122b543d76f789f41809",
+    "performance-native-initial.json": "34311c78dc979c27620c0583dbd3ae5064ec38106f5b1a371e6b6dac5b408eb4",
+    "performance-native-remaining.json": "d62774b26e87c9ebde5c5f02c21748eb25c535194a83608ba36b27216d2a15b2",
+    "performance-apex.json": "d9768850be47b2488ec09056f0f49a963d4a149d39e42e2a0ceead169518634d"
+  },
+  "source": "Existing frozen observations only",
+  "generationNPerArm": 1
+}

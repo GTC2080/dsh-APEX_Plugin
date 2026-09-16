@@ -1,0 +1,79 @@
+{
+  "searchedOn": "2026-09-16",
+  "scope": "Nature Portfolio, through 2026-09-16",
+  "records": [
+    {
+      "segment": "S001",
+      "claim": "多代理系统已被用于连接文献检索、假设生成与数据分析等研究环节。",
+      "support": "background support; does not support APEX benefit",
+      "doi": "10.1038/s41586-026-10652-y",
+      "title": "A multi-agent system for automating scientific discovery",
+      "journal": "Nature",
+      "authors": [
+        "Ghareeb, Ali E.",
+        "Chang, Benjamin",
+        "Mitchener, Ludovico",
+        "Yiu, Angela",
+        "Szostkiewicz, Caralyn J.",
+        "Shved, Dmytro",
+        "Gyimesi, Gavin J.",
+        "Laurent, Jon M.",
+        "Wright, Samantha M.",
+        "Razzak, Muhammed T.",
+        "White, Andrew D.",
+        "Finnemann, Silvia C.",
+        "Hinks, Michaela M.",
+        "Rodriques, Samuel G."
+      ],
+      "volume": "655",
+      "pages": "497-505",
+      "published": {
+        "date-parts": [
+          [
+            2026,
+            5,
+            19
+          ]
+        ]
+      },
+      "url": "https://www.nature.com/articles/s41586-026-10652-y",
+      "publisherPageChecked": true,
+      "crossrefUpdateTo": []
+    },
+    {
+      "segment": "S002",
+      "claim": "在另一些语言任务中，模型能力扩展也未能消除易被使用者忽略的错误。",
+      "support": "background support; does not support APEX benefit",
+      "doi": "10.1038/s41586-024-07930-y",
+      "title": "Larger and more instructable language models become less reliable",
+      "journal": "Nature",
+      "authors": [
+        "Zhou, Lexin",
+        "Schellaert, Wout",
+        "Martínez-Plumed, Fernando",
+        "Moros-Daval, Yael",
+        "Ferri, Cèsar",
+        "Hernández-Orallo, José"
+      ],
+      "volume": "634",
+      "pages": "61-68",
+      "published": {
+        "date-parts": [
+          [
+            2024,
+            9,
+            25
+          ]
+        ]
+      },
+      "url": "https://www.nature.com/articles/s41586-024-07930-y",
+      "publisherPageChecked": true,
+      "crossrefUpdateTo": []
+    }
+  ],
+  "technicalSources": [
+    "DOE Internal Combustion Engine Basics",
+    "Chromium Debugging janks"
+  ],
+  "policy": "Verified publisher abstract/methods and Crossref metadata; no literature citation is experimental evidence for APEX."
+}
