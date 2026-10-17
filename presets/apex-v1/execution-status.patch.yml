@@ -1,0 +1,4 @@
+# Optional research overlay, applied after the installed dsh-apex bundle.
+- insert:
+    - id: apex-execution-status
+      name: dsh-apex/apex-v1/execution-status

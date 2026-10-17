@@ -1,12 +1,14 @@
+import { sliceText } from './text.mjs'
 /** Real-browser checks of locally served artifacts. Protocol helpers derive from APEX 0.7. */
 import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { artifactRoot, artifactSnapshot } from './artifacts.mjs'
 import { registerTool } from './tools.mjs'
+import { directoryIdentity } from './temporary-runtime.mjs'
 
 export const name = 'apex-validation'
 export const inject = ['tools', 'subprocess']
@@ -19,6 +21,9 @@ const DEFAULT_SAMPLE_MS = 1_500
 const CDP_CALL_TIMEOUT_MS = 8_000
 const RAF_SAMPLE_SYMBOL = 'dsh.apex.fps-sample.v1'
 const MAX_SEQUENCE_SAMPLES = 12
+const MAX_CANVAS_CHECKPOINTS = 8
+const MAX_CANVAS_BYTES = 16 * 1024 * 1024
+const MAX_CANVAS_PIXELS = 16 * 1024 * 1024
 const CANVAS_DIAGNOSTICS_SYMBOL = 'dsh.apex.canvas-diagnostics.v1'
 const CANVAS_CONTEXTS_SYMBOL = 'dsh.apex.canvas-contexts.v1'
 const CONTROLLED_CLOCK_SYMBOL = 'dsh.apex.controlled-clock.v1'
@@ -74,14 +79,25 @@ const KEY_DEFINITIONS = Object.freeze({
 })
 
 function bounded(value, max = MAX_DIAGNOSTIC_CHARS) {
-  return String(value ?? '')
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
-    .slice(0, max)
+  return sliceText(String(value ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ''), 0, max)
 }
 
 function pushBounded(list, value) {
   const text = bounded(value)
   if (text.length > 0 && list.length < MAX_DIAGNOSTICS && !list.includes(text)) list.push(text)
+}
+
+function inspectPngHeader(body) {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  if (body.length < 33 || !body.subarray(0, signature.length).equals(signature)
+    || body.toString('ascii', 12, 16) !== 'IHDR' || body.readUInt32BE(8) !== 13) {
+    throw new Error('canvas screenshot was not a valid PNG')
+  }
+  const width = body.readUInt32BE(16), height = body.readUInt32BE(20)
+  if (width < 1 || height < 1 || width * height > MAX_CANVAS_PIXELS) {
+    throw new Error('canvas PNG dimensions are invalid or oversized')
+  }
+  return { width, height, pixels: width * height }
 }
 
 /** Runs before page scripts. Observe ignored numeric calls; preserve native results/errors. */
@@ -528,7 +544,7 @@ export async function sampleAnimationFrames(
             const sameAsPrevious = previousTexts[index] === text;
             previousTexts[index] = text;
             const number = firstNumber(text);
-            return { found: item !== null, text: text.slice(0, 500), sameAsPrevious,
+            return { found: item !== null, text: (${sliceText.toString()})(text, 0, 500), sameAsPrevious,
               containsExpected: check.contains !== undefined && text.includes(check.contains),
               number: Number.isFinite(number) ? number : null };
           } catch {
@@ -659,6 +675,39 @@ export function interactionContractDenial(args) {
     : 'interaction_required=true needs click_selector, click_canvas=true, a bounded click/key/text/input/select interactions action, or a clock_steps action; waiting, reload or assertion text alone never executes an input action.'
 }
 
+export function canvasCheckpointContractDenial(args) {
+  if (args.canvas_checkpoints === undefined) return undefined
+  const checkpoints = args.canvas_checkpoints
+  if (!Array.isArray(checkpoints) || checkpoints.length < 1 || checkpoints.length > MAX_CANVAS_CHECKPOINTS) {
+    return `canvas_checkpoints requires 1–${MAX_CANVAS_CHECKPOINTS} checkpoints`
+  }
+  if (args.clock_steps !== undefined) return 'canvas_checkpoints cannot be combined with clock_steps; use real-time interactions'
+  if (args.click_selector !== undefined || args.click_canvas !== undefined || args.pointer_lock_selector !== undefined) {
+    return 'canvas_checkpoints require ordered interactions; top-level actions have no checkpoint boundary'
+  }
+  const actions = Array.isArray(args.interactions) ? args.interactions.length : 0
+  const ids = new Set()
+  let previousAfterInteraction = 0
+  for (const [index, checkpoint] of checkpoints.entries()) {
+    const label = `canvas_checkpoints[${index}]`
+    if (checkpoint === null || typeof checkpoint !== 'object' || Array.isArray(checkpoint)) return `${label}: expected an object`
+    if (Object.keys(checkpoint).some(key => !['id', 'selector', 'after_interaction', 'compare_to', 'expectation'].includes(key))) return `${label}: unsupported fields`
+    if (typeof checkpoint.id !== 'string' || !/^\S.{0,63}$/.test(checkpoint.id) || ids.has(checkpoint.id)) return `${label}: id must be unique and 1–64 nonblank characters`
+    if (typeof checkpoint.selector !== 'string' || !checkpoint.selector.trim() || checkpoint.selector.length > 160) return `${label}: selector must be 1–160 characters`
+    if (!Number.isSafeInteger(checkpoint.after_interaction) || checkpoint.after_interaction < 0 || checkpoint.after_interaction > actions) return `${label}: after_interaction must be an integer from 0 to ${actions}`
+    if (checkpoint.after_interaction < previousAfterInteraction) return `${label}: after_interaction values must be nondecreasing`
+    previousAfterInteraction = checkpoint.after_interaction
+    const hasReference = checkpoint.compare_to !== undefined, hasExpectation = checkpoint.expectation !== undefined
+    if (hasReference !== hasExpectation) return `${label}: compare_to and expectation must be provided together`
+    if (hasReference) {
+      if (typeof checkpoint.compare_to !== 'string' || !ids.has(checkpoint.compare_to)) return `${label}: compare_to must reference an earlier checkpoint id`
+      if (!['same', 'different'].includes(checkpoint.expectation)) return `${label}: expectation must be same or different`
+    }
+    ids.add(checkpoint.id)
+  }
+  return undefined
+}
+
 function consoleText(params) {
   return (params.args ?? [])
     .map(value => value.value ?? value.description ?? value.type ?? '')
@@ -741,9 +790,9 @@ function controlHitTarget(item, scroll = false) {
 }
 
 /** Inspect only the current main-document view; never infer geometry or trigger controls. */
-async function inspectPageLayout(hitTarget, visible, limit) {
+async function inspectPageLayout(hitTarget, visible, limit, sliceText) {
   const layoutErrors = [], canvasErrors = [], warnings = [], layoutChecks = []
-  const identify = item => (item.id ? '#' + item.id : item.tagName.toLowerCase()).slice(0, 100)
+  const identify = item => sliceText(item.id ? '#' + item.id : item.tagName.toLowerCase(), 0, 100)
   const controls = document.querySelectorAll('button, input, select, textarea, [role="button"], [role="slider"], [role="checkbox"]')
   let checked = 0, offscreen = 0
   // ponytail: sample at most 200 controls/20 canvases in this view; larger or
@@ -774,7 +823,7 @@ async function inspectPageLayout(hitTarget, visible, limit) {
       drawable++
     } catch (error) {
       if (error?.name === 'InvalidStateError') canvasErrors.push(label + ': canvas bitmap is not drawable (InvalidStateError)')
-      else if (warnings.length < limit) warnings.push(label + ': bitmap check unverified (' + String(error?.name).slice(0, 80) + ')')
+      else if (warnings.length < limit) warnings.push(label + ': bitmap check unverified (' + sliceText(String(error?.name), 0, 80) + ')')
     }
   }
   layoutChecks.push('Canvas bitmap availability: ' + drawable + '/' + canvases.length + ' visible canvases drawable in this sample; this does not verify drawing content or geometry.')
@@ -782,7 +831,7 @@ async function inspectPageLayout(hitTarget, visible, limit) {
   return { layoutErrors, canvasErrors, warnings, layoutChecks }
 }
 
-export const LAYOUT_DIAGNOSTICS_SOURCE = `(${inspectPageLayout.toString()})(${controlHitTarget.toString()}, ${elementVisible.toString()}, ${MAX_DIAGNOSTICS})`
+export const LAYOUT_DIAGNOSTICS_SOURCE = `(${inspectPageLayout.toString()})(${controlHitTarget.toString()}, ${elementVisible.toString()}, ${MAX_DIAGNOSTICS}, ${sliceText.toString()})`
 
 async function targetPoint(client, selector, firstVisible = false) {
   const point = await evaluate(client, `(() => {
@@ -801,6 +850,77 @@ async function targetPoint(client, selector, firstVisible = false) {
     throw error
   }
   return point
+}
+
+function canvasCheckpointError(message) {
+  return new Error(`Canvas checkpoint ${message}`)
+}
+
+async function canvasTarget(client, selector) {
+  const target = await evaluate(client, `(() => {
+    const selector = ${JSON.stringify(selector)}, nodes = [...document.querySelectorAll(selector)]
+    if (nodes.length !== 1) return { error: nodes.length === 0 ? 'missing' : 'ambiguous' }
+    const item = nodes[0]
+    if (item.tagName !== 'CANVAS') return { error: 'target is not a canvas' }
+    const rect = item.getBoundingClientRect()
+    if (!(${elementVisible.toString()})(item, true)) return { error: 'target is hidden or outside the viewport' }
+    if (rect.left < 0 || rect.top < 0 || rect.right > innerWidth || rect.bottom > innerHeight) return { error: 'target is clipped' }
+    if (!Number.isFinite(item.width) || !Number.isFinite(item.height) || item.width < 1 || item.height < 1
+      || item.width * item.height > ${MAX_CANVAS_PIXELS}) return { error: 'canvas bitmap dimensions are invalid or oversized' }
+    const dpr = Number(devicePixelRatio)
+    if (!Number.isFinite(dpr) || dpr <= 0 || dpr > 4) return { error: 'device pixel ratio is invalid' }
+    return { selector, cssWidth: rect.width, cssHeight: rect.height, bitmapWidth: item.width, bitmapHeight: item.height,
+      devicePixelRatio: dpr, clip: { x: rect.left, y: rect.top, width: rect.width, height: rect.height } }
+  })()`).catch(error => { throw canvasCheckpointError(`${selector}: ${error.message}`) })
+  if (!target || target.error) throw canvasCheckpointError(`${selector}: ${target?.error ?? 'target inspection failed'}`)
+  return target
+}
+
+async function captureCanvasCheckpoint(client, checkpoint, captured, signal) {
+  signal?.throwIfAborted()
+  const target = await canvasTarget(client, checkpoint.selector)
+  let image
+  try {
+    image = await client.send('Page.captureScreenshot', { format: 'png', fromSurface: true, clip: { ...target.clip, scale: 1 } })
+  } catch (error) {
+    throw canvasCheckpointError(`${checkpoint.selector}: screenshot capture failed: ${bounded(error?.message ?? error)}`)
+  }
+  if (typeof image?.data !== 'string' || image.data.length > MAX_CANVAS_BYTES * 4 / 3 + 4096) {
+    throw canvasCheckpointError(`${checkpoint.selector}: screenshot is missing or oversized`)
+  }
+  const body = Buffer.from(image.data, 'base64')
+  if (body.length < 8 || body.length > MAX_CANVAS_BYTES) throw canvasCheckpointError(`${checkpoint.selector}: screenshot bytes are outside the allowed bound`)
+  let png
+  try { png = inspectPngHeader(body) } catch (error) { throw canvasCheckpointError(`${checkpoint.selector}: ${error.message}`) }
+  const result = {
+    id: checkpoint.id, selector: checkpoint.selector, afterInteraction: checkpoint.after_interaction,
+    compareTo: checkpoint.compare_to ?? '', expectation: checkpoint.expectation ?? '', hash: createHash('sha256').update(body).digest('hex'),
+    byteLength: body.length,
+    size: { cssWidth: target.cssWidth, cssHeight: target.cssHeight, bitmapWidth: target.bitmapWidth, bitmapHeight: target.bitmapHeight,
+      imageWidth: png.width, imageHeight: png.height, devicePixelRatio: target.devicePixelRatio, pixels: png.pixels },
+    passed: true,
+  }
+  const stored = captured.get(checkpoint.compare_to)
+  if (checkpoint.compare_to !== undefined) {
+    if (!stored) throw canvasCheckpointError(`${checkpoint.id}: comparison reference is unavailable: ${checkpoint.compare_to}`)
+    const sameSelector = stored.result.selector === result.selector
+    const sameSize = stored.result.size.cssWidth === result.size.cssWidth && stored.result.size.cssHeight === result.size.cssHeight
+      && stored.result.size.bitmapWidth === result.size.bitmapWidth && stored.result.size.bitmapHeight === result.size.bitmapHeight
+      && stored.result.size.imageWidth === result.size.imageWidth && stored.result.size.imageHeight === result.size.imageHeight
+    const sameDpr = stored.result.size.devicePixelRatio === result.size.devicePixelRatio
+    const sameBytes = sameSelector && sameSize && sameDpr && stored.result.hash === result.hash
+    result.comparison = { compareTo: checkpoint.compare_to, sameSelector, sameSize, sameDpr, sameBytes,
+      passed: checkpoint.expectation === 'same' ? sameBytes : !sameBytes && sameSelector && sameSize && sameDpr }
+    result.passed = result.passed && result.comparison.passed
+    if (!sameSelector || !sameSize || !sameDpr) {
+      const error = canvasCheckpointError(`${checkpoint.id}: comparison reference changed selector, size or device pixel ratio`)
+      error.canvasChecks = [result]
+      throw error
+    }
+    if (!result.comparison.passed) result.detail = `expected ${checkpoint.expectation} bytes relative to ${checkpoint.compare_to}`
+  }
+  captured.set(checkpoint.id, { result })
+  return result
 }
 
 /** Wait for a native lock on exactly one connected element; never change the page's Pointer Lock API. */
@@ -916,8 +1036,12 @@ async function setControlValue(client, request, kind, signal) {
   return observed.value
 }
 
-export async function dispatchInteractions(client, args, signal) {
+export async function dispatchInteractions(client, args, signal, onAction) {
   const sent = []
+  const complete = async (index, label) => {
+    sent.push(label)
+    await onAction?.(index)
+  }
   if (typeof args.click_selector === 'string' && args.click_selector.length > 0) {
     await clickTarget(client, args.click_selector, false, args.pointer_lock_selector, signal)
     sent.push(`click_selector:${args.click_selector}`)
@@ -926,32 +1050,32 @@ export async function dispatchInteractions(client, args, signal) {
     await clickTarget(client, 'canvas', true, args.pointer_lock_selector, signal)
     sent.push('click_canvas')
   }
-  for (const item of args.interactions ?? []) {
+  for (const [index, item] of (args.interactions ?? []).entries()) {
     signal?.throwIfAborted()
     if (item.reload === true) {
       await reloadDocument(client, signal)
-      sent.push('reload:new-document')
+      await complete(index + 1, 'reload:new-document')
       continue
     }
     if (item.wait_ms !== undefined) {
       await delay(item.wait_ms, signal)
-      sent.push(`wait:${item.wait_ms}ms`)
+      await complete(index + 1, `wait:${item.wait_ms}ms`)
       continue
     }
     if (item.text !== undefined) {
       await fillText(client, item, signal)
-      sent.push(`fill:${item.selector}`)
+      await complete(index + 1, `fill:${item.selector}`)
       continue
     }
     if (item.click_selector !== undefined) {
       await clickTarget(client, item.click_selector, false, item.pointer_lock_selector, signal)
-      sent.push(`click_selector:${item.click_selector}`)
+      await complete(index + 1, `click_selector:${item.click_selector}`)
       continue
     }
     if (item.input !== undefined || item.select !== undefined) {
       const request = item.input ?? item.select, kind = item.input !== undefined ? 'range' : 'select'
       const value = await setControlValue(client, request, kind, signal)
-      sent.push(`programmatic-${kind}:${request.selector}=${bounded(value, 80)}`)
+      await complete(index + 1, `programmatic-${kind}:${request.selector}=${bounded(value, 80)}`)
       continue
     }
     const { keyCode, text, ...definition } = KEY_DEFINITIONS[item.key]
@@ -968,7 +1092,7 @@ export async function dispatchInteractions(client, args, signal) {
         type: 'keyUp', ...definition, windowsVirtualKeyCode: keyCode,
       })
     }
-    sent.push(`${item.key}:${item.hold_ms}ms`)
+    await complete(index + 1, `${item.key}:${item.hold_ms}ms`)
   }
   return sent
 }
@@ -1004,7 +1128,7 @@ export async function inspectTextChecks(client, checks, phase) {
         phase: check.phase,
         selector: check.selector,
         ...(exact ? {equals: check.equals} : {contains: check.contains}),
-        observed: text.slice(0, 500),
+        observed: (${sliceText.toString()})(text, 0, 500),
         passed: item !== null && unique && (exact ? text.trim() === check.equals : text.includes(check.contains))
       };
     } catch {
@@ -1199,7 +1323,7 @@ export async function runClockSteps(client, steps, signal) {
         const item = document.querySelector(check.selector);
         const text = item ? String(item.textContent ?? '') : '';
         const number = firstNumber(text);
-        return {found: item !== null, text: text.slice(0,500),
+        return {found: item !== null, text: (${sliceText.toString()})(text,0,500),
           containsExpected: check.contains === undefined || text.includes(check.contains),
           number: Number.isFinite(number) ? number : null,
           exact: check.equals === undefined || (document.querySelectorAll(check.selector).length === 1 && text.trim() === check.equals)};
@@ -1235,14 +1359,27 @@ async function capturePage(client, args, signal, onSample) {
     return result
   }
   let interactions, clockResult, actionSample, beforeTextChecks = [], afterTextChecks = []
+  const canvasChecks = [], capturedCanvases = new Map()
+  const captureAt = async afterInteraction => {
+    const selected = (args.canvas_checkpoints ?? []).filter(check => check.after_interaction === afterInteraction)
+    for (const checkpoint of selected) {
+      try {
+        canvasChecks.push(await captureCanvasCheckpoint(client, checkpoint, capturedCanvases, signal))
+      } catch (error) {
+        error.canvasChecks = [...canvasChecks, ...(error.canvasChecks ?? [])]
+        throw error
+      }
+    }
+  }
   if (args.clock_steps !== undefined) {
     clockResult = await runClockSteps(client, args.clock_steps, signal)
     interactions = clockResult.interactions
   } else {
     await delay(args.settle_ms ?? DEFAULT_SETTLE_MS, signal)
     beforeTextChecks = await inspectTextChecks(client, args.text_checks, 'before')
+    await captureAt(0)
     const actions = async () => {
-      interactions = await dispatchInteractions(client, args, signal)
+      interactions = await dispatchInteractions(client, args, signal, captureAt)
       if (interactions.length > 0) await delay(250, signal)
       afterTextChecks = await inspectTextChecks(client, args.text_checks, 'after')
     }
@@ -1291,6 +1428,7 @@ async function capturePage(client, args, signal, onSample) {
     sequenceChecks,
     interactions,
     textChecks: [...beforeTextChecks, ...afterTextChecks],
+    canvasChecks,
   }
 }
 
@@ -1303,17 +1441,43 @@ function effectiveTimeoutMs(args) {
   ))
 }
 
+async function temporaryDirectory(prefix) {
+  const parent = await fs.realpath(tmpdir())
+  const path = await fs.mkdtemp(join(parent, prefix))
+  try { return { path, identity: directoryIdentity(path) } }
+  catch (error) {
+    throw new Error(`Temporary directory ownership was not established at ${path}: ${error.message}. Verify ownership before manual cleanup.`, { cause: error })
+  }
+}
+
+async function removeTemporaryDirectory(directory) {
+  // ponytail: reject observed replacements; atomic protection from same-user races needs native handle-relative deletion.
+  if (directoryIdentity(directory.path) !== directory.identity) {
+    throw new Error('Temporary directory identity changed; refusing cleanup')
+  }
+  await fs.rm(directory.path, { recursive: true, force: false })
+}
+
 /** Capture once into a private, unique directory. Return a native read_image path. */
-async function writeScreenshot(client) {
+async function writeScreenshot(client, cleanup) {
   const image = await client.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
   if (typeof image.data !== 'string' || image.data.length > 90 * 1024 * 1024) throw new Error('Screenshot response is missing or oversized')
   const body = Buffer.from(image.data, 'base64')
   if (body.length < 8 || !body.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) throw new Error('Screenshot response is not a PNG')
-  const directory = await fs.mkdtemp(join(tmpdir(), 'dsh-apex-evidence-'))
-  const path = join(directory, 'capture.png')
+  const directory = await temporaryDirectory('dsh-apex-evidence-')
+  const path = join(directory.path, 'capture.png')
   try { await fs.writeFile(path, body, { flag: 'wx', mode: 0o600 }) }
-  catch (error) { await fs.rm(directory, { recursive: true, force: true }); throw error }
-  return { hash: createHash('sha256').update(body).digest('hex'), path }
+  catch (error) {
+    try {
+      await removeTemporaryDirectory(directory)
+      cleanup.push('failed-capture-removed')
+    } catch (cleanupError) {
+      cleanup.push('failed-capture-remove-failed')
+      throw new AggregateError([error, cleanupError], `${error.message}; cleanup failed at ${directory.path}: ${cleanupError.message}`)
+    }
+    throw error
+  }
+  return { hash: createHash('sha256').update(body).digest('hex'), path, directory }
 }
 
 async function terminateBrowser(handle) {
@@ -1335,6 +1499,7 @@ function emptyResult(args, snapshot, startedAt) {
     canvasCount: 0, visibleCanvasCount: 0, graphicsApi: 'none', graphicsRenderer: '',
     fps: 0, p95FrameMs: 0, interactions: [], failedTextChecks: [], sequenceChecks: [],
     failedSequenceChecks: [], missingSelectors: [], selectorChecks: [],
+    canvasChecks: [], measurementComplete: false,
     consoleErrors: [], pageErrors: [], canvasErrors: [], layoutErrors: [], layoutChecks: [],
     networkErrors: [], httpErrors: [], warnings: [], screenshotPath: '', screenshotHash: '',
     artifactRoot: snapshot.root, artifactHash: snapshot.hash, artifactHashAfter: '', artifactStable: false,
@@ -1348,6 +1513,8 @@ export async function runValidation(ctx, args, exec) {
   if (clockDenial) throw new Error(clockDenial)
   const interactionDenial = interactionContractDenial(args)
   if (interactionDenial) throw new Error(interactionDenial)
+  const canvasDenial = canvasCheckpointContractDenial(args)
+  if (canvasDenial) throw new Error(canvasDenial)
   const sequenceDenial = sequenceContractDenial(args)
   if (sequenceDenial) throw new Error(sequenceDenial)
   const snapshot = await artifactSnapshot(exec.agent, args.root, exec.signal)
@@ -1362,10 +1529,12 @@ export async function runValidation(ctx, args, exec) {
   let browserHandle
   let staticServer
   let client
-  let userDataDir
+  let profile
+  let screenshot
   let result = emptyResult(args, snapshot, startedAt)
   let metricsDetail = 'rAF not measured; fps and p95FrameMs are unmeasured placeholders.'
   let cleanup = []
+  let configuredChecksExecuted = false
   let browserTerminated = browserHandle === undefined
   try {
     const browser = await resolveBrowser(ctx.subprocess, signal)
@@ -1380,13 +1549,13 @@ export async function runValidation(ctx, args, exec) {
       : '/index.html'
     result.url = `${staticServer.origin}${entry}`
     stage = 'launch-browser'
-    userDataDir = await fs.mkdtemp(join(tmpdir(), 'dsh-apex-web-'))
+    profile = await temporaryDirectory('dsh-apex-web-')
     browserHandle = ctx.subprocess.spawn({
       argv: [
         browser,
         '--headless=new',
         '--remote-debugging-port=0',
-        `--user-data-dir=${userDataDir}`,
+        `--user-data-dir=${profile.path}`,
         `--window-size=${args.width ?? 1280},${args.height ?? 720}`,
         '--disable-background-networking',
         ...HEADLESS_FOREGROUND_FLAGS,
@@ -1408,7 +1577,7 @@ export async function runValidation(ctx, args, exec) {
       graceMs: 1_000,
       signal,
     })
-    const port = await devtoolsPort(userDataDir, browserHandle, signal)
+    const port = await devtoolsPort(profile.path, browserHandle, signal)
     stage = 'connect-devtools'
     const targets = await jsonFetch(`http://127.0.0.1:${port}/json/list`, signal)
     const page = Array.isArray(targets) ? targets.find(target => target?.type === 'page') : undefined
@@ -1474,7 +1643,7 @@ export async function runValidation(ctx, args, exec) {
       }
     }
     for (const warning of layout.warnings) pushBounded(warnings, warning)
-    const screenshot = await writeScreenshot(client)
+    screenshot = await writeScreenshot(client, cleanup)
     result.screenshotPath = screenshot.path
     result.screenshotHash = screenshot.hash
     const canvasErrors = await evaluate(client, `globalThis[Symbol.for(${JSON.stringify(CANVAS_DIAGNOSTICS_SYMBOL)})]`)
@@ -1487,6 +1656,7 @@ export async function runValidation(ctx, args, exec) {
     const failedTextChecks = textCheckFailures(pageInfo.textChecks)
     const sequenceChecks = pageInfo.sequenceChecks.map(check => check.summary)
     const failedSequenceChecks = pageInfo.sequenceChecks.filter(check => !check.passed).map(check => check.failure)
+    const failedCanvasChecks = pageInfo.canvasChecks.filter(check => check.passed !== true)
     const failures = []
     if (mainStatus >= 400 || mainStatus === 0) failures.push(`main document HTTP status was ${mainStatus || 'not observed'}`)
     if (args.require_canvas === true && pageInfo.canvas.visible === 0) failures.push('no visible canvas')
@@ -1503,6 +1673,7 @@ export async function runValidation(ctx, args, exec) {
     if (missingSelectors.length > 0) failures.push(`selector checks failed: ${missingSelectors.join(', ')}`)
     if (failedTextChecks.length > 0) failures.push(`text checks failed: ${failedTextChecks.join(', ')}`)
     if (failedSequenceChecks.length > 0) failures.push(`sequence checks failed: ${failedSequenceChecks.join(', ')}`)
+    if (failedCanvasChecks.length > 0) failures.push(`canvas checks failed: ${failedCanvasChecks.map(check => check.id).join(', ')}`)
     if (consoleErrors.length > 0) failures.push(`${consoleErrors.length} console error(s)`)
     if (pageErrors.length > 0) failures.push(`${pageErrors.length} uncaught page error(s)`)
     if (canvasErrors.length > 0) failures.push(`${canvasErrors.length} Canvas diagnostic(s)`)
@@ -1524,6 +1695,7 @@ export async function runValidation(ctx, args, exec) {
       failedTextChecks,
       sequenceChecks,
       failedSequenceChecks,
+      canvasChecks: pageInfo.canvasChecks,
       missingSelectors,
       selectorChecks: pageInfo.selectors,
       consoleErrors,
@@ -1543,19 +1715,21 @@ export async function runValidation(ctx, args, exec) {
           ? `contains=${JSON.stringify(check.contains)}` : `equals=${JSON.stringify(check.equals)}`}, observedExcerpt=${JSON.stringify(bounded(check.observed, 120))}, ${check.passed ? 'passed' : 'failed'}.`),
       ].join('\n'),
     }
+    configuredChecksExecuted = true
   } catch (error) {
     if (exec.signal?.aborted) throw error
     const unsupportedClock = /Controlled clock (?:unsupported|did not initialize)/.test(String(error?.message ?? error))
     const status = !unsupportedClock && ['navigate', 'page-validation'].includes(stage) ? 'failed' : 'blocked'
     result.status = status
     result.detail = `${stage}: ${bounded(error instanceof Error ? error.message : error)}`
+    if (Array.isArray(error?.canvasChecks)) result.canvasChecks = error.canvasChecks.slice(0, MAX_CANVAS_CHECKPOINTS)
     if (error?.layoutFailure === true) result.layoutErrors = [bounded(error.message)]
     if (/Pointer Lock/.test(result.detail)) pushBounded(result.warnings, 'Native Pointer Lock was not established; dependent actions and their acceptance remain unverified. Headless support varies.')
     if (client && !signal.aborted && !result.screenshotPath) {
       try {
-        const capture = await writeScreenshot(client)
-        result.screenshotPath = capture.path
-        result.screenshotHash = capture.hash
+        screenshot = await writeScreenshot(client, cleanup)
+        result.screenshotPath = screenshot.path
+        result.screenshotHash = screenshot.hash
       } catch (captureError) {
         pushBounded(result.warnings, 'Failure capture unavailable: ' + bounded(captureError.message))
       }
@@ -1583,25 +1757,27 @@ export async function runValidation(ctx, args, exec) {
       cleanup.push('browser-cleanup-failed')
     }
     try {
-      if (userDataDir !== undefined && browserTerminated) {
-        await fs.rm(userDataDir, { recursive: true, force: true })
+      if (profile !== undefined && browserTerminated) {
+        await removeTemporaryDirectory(profile)
         cleanup.push('profile-removed')
       }
-    } catch {
+    } catch (error) {
       cleanup.push('profile-remove-failed')
+      pushBounded(result.warnings, 'Browser profile cleanup failed: ' + bounded(error.message))
     }
-    if (userDataDir !== undefined && !cleanup.includes('profile-removed')) {
-      const warning = `Owned browser profile retained: ${userDataDir}. Remove only this directory after its browser process range has verifiably stopped; do not scan or delete unrelated temporary directories.`
+    if (profile !== undefined && !cleanup.includes('profile-removed')) {
+      const warning = `Browser profile cleanup incomplete at its original path: ${profile.path}. Before manual cleanup, verify directory ownership and that its browser process range has verifiably stopped; do not remove a replacement or unrelated directory.`
       result.detail = `${result.detail} ${warning}`.trim()
       pushBounded(result.warnings, warning)
       if (exec.signal?.aborted) ctx.logger?.warn(warning)
     }
-    if (exec.signal?.aborted && result.screenshotPath) {
+    if (exec.signal?.aborted && screenshot !== undefined) {
       try {
-        await fs.rm(dirname(result.screenshotPath), { recursive: true, force: true })
+        await removeTemporaryDirectory(screenshot.directory)
         cleanup.push('unreturned-capture-removed')
-      } catch {
+      } catch (error) {
         cleanup.push('unreturned-capture-remove-failed')
+        ctx.logger?.warn(`Unreturned capture cleanup failed at its original path ${screenshot.directory.path}: ${bounded(error.message)}. Verify directory ownership before manual cleanup.`)
       }
     }
     result.cleanup = cleanup.length > 0 ? cleanup.join(',') : 'nothing-started'
@@ -1630,6 +1806,15 @@ export async function runValidation(ctx, args, exec) {
     result.durationMs = Date.now() - startedAt
   }
   exec.signal?.throwIfAborted()
+  const cleanupVerified = cleanup.includes('server-closed')
+    && cleanup.includes('browser-terminated')
+    && cleanup.includes('profile-removed')
+    && !cleanup.some(item => item.endsWith('-failed') || item === 'browser-still-live')
+  result.measurementComplete = configuredChecksExecuted
+    && !signal.aborted
+    && !timeoutSignal.aborted
+    && cleanupVerified
+    && result.artifactStable === true
   result.detail += `\n${metricsDetail}`
   return result
 }
@@ -1708,6 +1893,17 @@ export const VALIDATION_PARAMETERS = {
               } }, required: ['select'],
             }],
           },
+        },
+        canvas_checkpoints: {
+          type: 'array', maxItems: MAX_CANVAS_CHECKPOINTS,
+          description: 'Passive bounded canvas screenshots in the real-time path. after_interaction 0 is before ordered interactions; n is after interaction n. A comparison references an earlier checkpoint and compares PNG hashes only after selector, size and DPR checks. Checkpoints do not count as host actions.',
+          items: { type: 'object', additionalProperties: false, properties: {
+            id: { type: 'string', minLength: 1, maxLength: 64 },
+            selector: { type: 'string', minLength: 1, maxLength: 160 },
+            after_interaction: { type: 'integer', minimum: 0, maximum: 8 },
+            compare_to: { type: 'string', minLength: 1, maxLength: 64 },
+            expectation: { type: 'string', enum: ['same', 'different'] },
+          }, required: ['id', 'selector', 'after_interaction'] },
         },
         text_checks: {
           type: 'array',
@@ -1806,7 +2002,16 @@ export const VALIDATION_OUTPUT = {
     overallAcceptance: { type: 'string', const: 'not-assessed' },
     timingMode: { type: 'string', enum: ['real-time', 'controlled-clock'] },
     metricsKind: { type: 'string', enum: ['instrumented-raf', 'not-measured'], description: 'instrumented-raf requires a completed real-time sample, even if later checks fail. not-measured means no completed sample or controlled-clock mode; never interpret its numeric placeholders as measured zero.' },
-    pointerLocked: { type: 'boolean' }, artifactStable: { type: 'boolean' },
+    pointerLocked: { type: 'boolean' }, artifactStable: { type: 'boolean' }, measurementComplete: { type: 'boolean', description: 'True only when every configured check completed, owned browser cleanup was verified, the artifact remained stable, and no timeout or abort occurred.' },
+    canvasChecks: { type: 'array', items: { type: 'object', additionalProperties: false, properties: {
+      id: { type: 'string' }, selector: { type: 'string' }, afterInteraction: { type: 'integer' }, compareTo: { type: 'string' },
+      expectation: { type: 'string', enum: ['', 'same', 'different'] }, hash: { type: 'string' }, byteLength: { type: 'integer' },
+      size: { type: 'object', additionalProperties: false, properties: {
+        cssWidth: { type: 'number' }, cssHeight: { type: 'number' }, bitmapWidth: { type: 'integer' }, bitmapHeight: { type: 'integer' },
+        imageWidth: { type: 'integer' }, imageHeight: { type: 'integer' }, devicePixelRatio: { type: 'number' }, pixels: { type: 'integer' },
+      }, required: ['cssWidth', 'cssHeight', 'bitmapWidth', 'bitmapHeight', 'imageWidth', 'imageHeight', 'devicePixelRatio', 'pixels'] },
+      passed: { type: 'boolean' }, comparison: { type: 'object' }, detail: { type: 'string' },
+    }, required: ['id', 'selector', 'afterInteraction', 'compareTo', 'expectation', 'hash', 'byteLength', 'size', 'passed'] } },
     checks: {
       // Field guidance is already in the input SDK; keep the echo types and constraints.
       ...JSON.parse(JSON.stringify(VALIDATION_PARAMETERS,
@@ -1827,10 +2032,13 @@ VALIDATION_OUTPUT.required = Object.keys(VALIDATION_OUTPUT.properties)
 export function apply(ctx) {
   registerTool(ctx, {
     name: 'apex_validate_web',
-    description: 'Run local HTML/JS in real isolated headless Chromium, including dynamic interactions; no downloads. '
+    description: 'Use this Host-managed browser path for local HTML/JS checks, including ordinary forms, DOM state, reload persistence and canvas. '
+      + 'It runs real isolated headless Chromium with a private profile and automatic cleanup; no downloads or shell-based browser launch is needed. '
+      + 'Set require_canvas:false for pages without a canvas. Call it directly from PTC with tools.apex_validate_web. '
       + 'Every call executes fresh checks and records its inputs, observations, artifact hashes and screenshot. Read apex_read_evidence first when nothing relevant changed. '
       + 'Derive checks from requirements; assertion is only a label. A pass covers configured checks, not all requirements or visual quality. '
       + 'Use ordered fill/click/key/select/reload actions between before/after DOM text checks; width/height set the viewport. Each call starts a fresh private profile; reload preserves data only within that call. Sequence sampling normally follows actions. '
+      + 'Passive canvas_checkpoints can capture up to eight bounded PNG clips at ordered interaction boundaries and compare same-run PNG hashes with selector, size and DPR evidence; they do not count as host actions. '
       + 'Instrumented rAF is a responsiveness signal, not actual GPU frame throughput. Controlled clock is only a bounded main-document probe, not CSS animations, Date construction, iframes, workers or network scheduling. '
       + 'Pointer Lock is native and may be unsupported; failures remain failures. Read screenshotPath with read_image, optionally request apex_review; image loading alone is not acceptance.',
     parameters: VALIDATION_PARAMETERS,

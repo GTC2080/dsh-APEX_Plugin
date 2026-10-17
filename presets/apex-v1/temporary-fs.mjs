@@ -20,7 +20,7 @@ export async function apply(ctx, config) {
     async mutation(method, target, body, expected, signal, policy = ctx.sandboxPolicy.resolve()) {
       const cancelledBeforeExecution = () => new FsError('File mutation cancelled before execution; no write was started', 'FS_ABORTED')
       if (signal?.aborted) throw cancelledBeforeExecution()
-      // All callers share this FIFO, including ordinary presets; workers retain the native guarded publication.
+      // Callers in the APEX service realm share this FIFO; native presets use a separate filesystem.
       const prior = this.mutationTails.get(target.targetKey) ?? Promise.resolve()
       let onQueuedAbort
       const cancelled = signal && new Promise((_, reject) => {
@@ -36,8 +36,9 @@ export async function apply(ctx, config) {
         const record = ctx.apexTemporaryDirectories.directory(policy)
         const fresh = await this.resolve(target.displayPath, { signal })
         const path = this.processPath(fresh)
-        if (![record.workspace, record.path].some(root => contains(root, path))) {
-          throw new FsError('Target is outside the workspace and private temporary directory', 'FS_SANDBOX_DENIED')
+        const roots = record.workspaceOnly ? [record.workspace] : [record.workspace, record.path]
+        if (!roots.some(root => contains(root, path))) {
+          throw new FsError(record.workspaceOnly ? 'Target is outside the workspace (APEX workspaceOnly)' : 'Target is outside the workspace and private temporary directory', 'FS_SANDBOX_DENIED')
         }
         const deadline = AbortSignal.timeout(30000)
         const abort = signal ? AbortSignal.any([signal, deadline]) : deadline

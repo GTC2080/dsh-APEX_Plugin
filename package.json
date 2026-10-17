@@ -1,7 +1,7 @@
 {
   "name": "dsh-apex",
-  "version": "1.0.0",
-  "description": "APEX 1.0: native PTC, scoped Agent Teams and generic browser evidence for DeepSeek Harness v0.1.6-alpha.1",
+  "version": "1.0.1",
+  "description": "APEX 1.0.1：原生 PTC、作用域 Agent Teams 与通用浏览器证据，适配 DeepSeek Harness v0.2.0-rc.2",
   "type": "module",
   "main": "apex.js",
   "exports": {
@@ -13,14 +13,21 @@
     "cordis.patch.yml",
     "presets/apex-v1",
     "README.md",
+    "ARCHIVE.md",
     "docs/APEX-1.0.md",
+    "docs/SEARCH-EXPERIMENT.md",
+    "docs/EVIDENCE-FLOW.md",
+    "docs/NATIVE-FEEDBACK.md",
     "LICENSE",
     "NOTICE",
     "docs/PUBLICATION.md"
   ],
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/apex-v1/agent.cordis.yml"
+      ]
     }
   },
   "engines": {
@@ -44,8 +51,10 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/dsh-experimental-agent-team": "0.1.6-alpha.1",
-    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "0.1.6-alpha.1"
+    "@deepseek-ai/dsh-agent-preset": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-agent-team": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-client-ui-agent-team": "0.2.0-rc.2"
   },
   "packageManager": "pnpm@11.7.0",
   "repository": {

@@ -10,7 +10,7 @@ import * as review from '../presets/apex-v1/review.mjs'
 
 // Real in-memory native registry/loop/provider/runtime; no Host, DSH_HOME,
 // persistence backend, network adapter or second installation is created.
-async function fixture(t, script, mountReview = true) {
+async function fixture(t, script, mountReview = true, loaderSubagent = true) {
   const { Context } = await native('cordis')
   const ctx = new Context()
   ctx.baseUrl = pathToFileURL(join(harnessRoot, 'apps/cli/')).href
@@ -22,11 +22,31 @@ async function fixture(t, script, mountReview = true) {
     ['dsh-sandbox-policy', { mode: 'read-only', workspaceRoot: process.cwd() }],
     ['dsh-fs-sandbox', { cwd: process.cwd() }],
     ['dsh-ptc-runtime-node', { timeoutMs: 5000 }],
-    ['dsh-agent-loop', { agents: [] }], ['dsh-subagent'],
+    ['dsh-agent-loop', { agents: [] }],
     ['dsh-subagent-spawn-in-process', { providerName: 'spawn' }],
   ]) {
     const mod = await native(name)
     await ctx.plugin(mod.default ?? mod, config)
+    if (name === 'cordis-plugin-loader') {
+      const group = await native('cordis-plugin-group')
+      ctx.loader.builtins.group = group.default ?? group
+    }
+  }
+  // Keep the real subagent service behind Loader so this test exercises the
+  // same live-config entry update used by the Host, rather than mounting a
+  // second settings service or mutating a private service object.
+  const subagentModule = await native('dsh-subagent')
+  let subagentEntry
+  if (loaderSubagent) {
+    ctx.loader.builtins.subagent = subagentModule.default ?? subagentModule
+    const subagentId = await ctx.loader.create({
+      id: 'subagent', name: 'cordis:subagent',
+      config: { maxDepth: 1, maxActiveSubagents: 8 },
+    })
+    subagentEntry = ctx.loader.resolve(subagentId)
+    await subagentEntry.fiber.await()
+  } else {
+    await ctx.plugin(subagentModule.default ?? subagentModule, { maxDepth: 1, maxActiveSubagents: 8 })
   }
   const { defineTool } = await native('dsh-tools')
   const executed = []
@@ -47,7 +67,7 @@ async function fixture(t, script, mountReview = true) {
     }
   }
   ctx.llm.registerAdapter(['fixture'], new Scripted())
-  return { ctx, requests, executed, async create(id, setup) {
+  return { ctx, requests, executed, subagentEntry, async create(id, setup) {
     return ctx.agents.create({ sessionId: id, meta: { cwd: process.cwd() }, agentOptions: { provider: 'fixture', model: 'fixture' }, setup })
   }, async turn(agent) {
     agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Fixture task' }] }))
@@ -115,32 +135,33 @@ test('parent first request explains review limits once and preserves unverified 
     return parents.length === 1 ? toolResponse('review-handoff', 'run_code', {
       description: 'Read-only review', code: 'return await tools.apex_review({description:"Inspect fixture",prompt:"Inspect fixture.mjs against the supplied requirements."});',
     }) : textResponse('done')
-  }, false)
+  }, false, false)
   const { createScope, bindScopeParent, scopeOf } = await native('dsh-scope')
   const { entryListSchema } = await native('cordis-plugin-include')
-  const { load, dump } = createRequire(join(harnessRoot, 'package.json'))('js-yaml')
+  const { load } = createRequire(join(harnessRoot, 'vendor/include/package.json'))('js-yaml')
   // Use the shipped persona and review rows, with the native YAML dialect and
   // scope/provider/loop. No full Host fixture or temporary DSH_HOME is needed.
   const entries = load(await readFile(join(pluginRoot, 'presets/apex-v1/agent.cordis.yml'), 'utf8'), { schema: entryListSchema })
-  const persona = entries.find(row => row.id === 'persona')
+  const rows = entries.find(row => Array.isArray(row.insert))?.insert?.find(row => row.id === 'preset-apex-v1')?.config?.plugins?.find(row => row.id === 'apex-session')?.config
+  assert.ok(rows, 'fixture must have an apex-session group')
+  const persona = rows.find(row => row.id === 'persona')
   assert.equal(persona.name, '@deepseek-ai/dsh-persona')
-  assert.equal(entries.find(row => row.id === 'apex-review').name, 'dsh-apex/apex-v1/review')
-  const dir = await mkdtemp(join(tmpdir(), 'apex-review-composition-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const composition = join(dir, 'agent.cordis.yml')
-  await writeFile(composition, dump([persona, { ...entries.find(row => row.id === 'apex-review'), name: join(pluginRoot, 'presets/apex-v1/review.mjs') }]))
-  const roster = await native('dsh-agent-presets')
-  await h.ctx.plugin(roster.default, { default: 'fixture', roots: [], includeShippedRoot: false, includeUserRoot: false })
-  const key = {}, preset = createScope(h.ctx, key)
-  t.after(() => preset.dispose())
-  // Native composeFrom() recognizes standing mounts, not an arbitrary scope
-  // parent. Exercise the real join so the delegated child inherits this preset.
-  await roster.mountPreset(preset.ctx, { id: 'fixture', trust: 'user', path: composition })
-  const parent = await h.create('guided-parent', ctx => { bindScopeParent(scopeOf(ctx), key) })
+  assert.equal(rows.find(row => row.id === 'apex-review').name, 'dsh-apex/apex-v1/review')
+  const registry = await native('dsh-agent-preset-registry')
+  await h.ctx.plugin(registry.default, { default: 'fixture' })
+  const reviewRow = { ...rows.find(row => row.id === 'apex-review'), name: join(pluginRoot, 'presets/apex-v1/review.mjs') }
+  await h.ctx.loader.root.update([{
+    id: 'preset-fixture', name: '@deepseek-ai/dsh-agent-preset',
+    config: { id: 'fixture', plugins: [persona, reviewRow] },
+  }])
+  // Bind the real Agent directly to the registry declaration so delegated children
+  // inherit the same preset revision through the official scope service.
+  const parent = await h.create('guided-parent')
+  await h.ctx.agentPresets.recompose(parent.agent.ctx, 'fixture')
   t.after(() => parent.dispose())
   await h.turn(parent.agent)
   assert.equal(parents.length, 2, JSON.stringify(parent.agent.session.snapshotEvents().slice(-2)))
-  assert.equal(children.length, 1)
+  assert.equal(children.length, 1, JSON.stringify(h.requests.map(systemText)))
   const first = systemText(parents[0])
   assert.match(first, /apex_review is optional read-only code\/image review/)
   assert.match(first, /cannot execute commands, write even temporary files, or delegate/)
@@ -195,9 +216,10 @@ test('review creation listener belongs only to its preset scope and unwinds on u
   const { createScope, bindScopeParent, scopeOf } = await native('dsh-scope')
   const presetKey = {}, preset = createScope(h.ctx, presetKey)
   t.after(() => preset.dispose())
-  const plugin = await preset.ctx.plugin(review)
-  for (const [id, joined, nativeExpected] of [['review', true, true], ['unrelated', false, false], ['unloaded', true, false]]) {
+  let plugin = await preset.ctx.plugin(review)
+  for (const [id, joined, nativeExpected] of [['review', true, true], ['unrelated', false, false], ['unloaded', true, false], ['reloaded', true, true]]) {
     if (id === 'unloaded') await plugin.dispose()
+    if (id === 'reloaded') plugin = await preset.ctx.plugin(review)
     const handle = await h.ctx.agents.create({ sessionId: id,
       agentOptions: { provider: 'fixture', model: 'fixture', apexReadOnlyReview: true },
       setup: ctx => { if (joined) bindScopeParent(scopeOf(ctx), presetKey) },
@@ -207,4 +229,25 @@ test('review creation listener belongs only to its preset scope and unwinds on u
     assert.equal(h.ctx.tools.get('run_code', agent) === undefined, nativeExpected, id)
     if (nativeExpected) assert.deepEqual(h.ctx.tools.schemas(agent).map(t => t.name).sort(), ['glob', 'grep', 'read', 'read_image'])
   }
+})
+
+test('review obeys live native delegation depth without overriding the Host setting', { skip: !harnessAvailable, timeout: 10000 }, async t => {
+  const h = await fixture(t, () => textResponse('review complete'))
+  const parent = await h.create('depth-parent'); t.after(() => parent.dispose())
+  const tool = h.ctx.tools.get('apex_review', parent.agent)
+  assert.ok(tool)
+  assert.equal(h.ctx.subagents.resolveMaxDepth(), 1)
+  await h.subagentEntry.update({ config: { maxDepth: 0, maxActiveSubagents: 8 } })
+  await h.subagentEntry.fiber.await()
+  await assert.rejects(tool.execute({ description: 'Bounded review', prompt: 'Read only.' }, {
+    agent: parent.agent, signal: new AbortController().signal,
+  }), /depth/i)
+  assert.equal(h.requests.length, 0)
+  await h.subagentEntry.update({ config: { maxDepth: 1, maxActiveSubagents: 8 } })
+  await h.subagentEntry.fiber.await()
+  await tool.execute({ description: 'Bounded review', prompt: 'Read only.' }, {
+    agent: parent.agent, signal: new AbortController().signal,
+  })
+  assert.equal(h.requests.length, 1)
+  assert.deepEqual(h.requests[0].tools.map(tool => tool.name).sort(), ['glob', 'grep', 'read', 'read_image'])
 })

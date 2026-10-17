@@ -33,10 +33,7 @@ const MEMBER_VIEW_SCHEMA = {
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "id": {
-      "type": "string"
-    },
-    "name": {
+    "target": {
       "type": "string"
     },
     "role": {
@@ -50,7 +47,6 @@ const MEMBER_VIEW_SCHEMA = {
       "type": "string",
       "enum": [
         "running",
-        "idle",
         "inactive",
         "provisioning",
         "failed"
@@ -80,8 +76,7 @@ const MEMBER_VIEW_SCHEMA = {
     }
   },
   "required": [
-    "id",
-    "name",
+    "target",
     "role",
     "status",
     "diagnostics"
@@ -221,7 +216,6 @@ const INTERRUPT_VALUE_SCHEMA = {
       "type": "string",
       "enum": [
         "running",
-        "idle",
         "inactive"
       ]
     }
@@ -235,6 +229,27 @@ const TASK_LIST_VALUE_SCHEMA = {
   properties: { tasks: { type: 'array', items: TASK_VIEW_SCHEMA }, nextCursor: { type: 'integer' } },
   required: ['tasks'],
 }
+
+/** Keep native member identity private while exposing the stable target name. */
+function modelMember(member) {
+    const { id: _id, name, ...details } = member;
+    return { target: name, ...details };
+}
+
+/** Add delivery diagnostics to native rows before projecting their model view. */
+function memberRows(ctx, caller) {
+    const members = ctx.agentTeams.listMembers(caller);
+    const { root } = ctx.agentTeams.membership(caller);
+    const state = ctx.sessionProjections.stateOf(root.session, 'agentTeam');
+    if (state === undefined) throw new Error('Agent Teams projection is not registered');
+    const delivered = new Set(state.delivered), pending = new Map();
+    for (const message of state.messages) {
+        if (!delivered.has(message.id)) pending.set(message.targetId, (pending.get(message.targetId) ?? 0) + 1);
+    }
+    return members.map(member => pending.has(member.id) ? { ...member, diagnostics: [...member.diagnostics,
+        `${pending.get(member.id)} Team message(s) await recorded delivery; inactive status does not mean this work is finished. Do not resend queued work.`] } : member);
+}
+
 function jsonOutput(schema) {
     return {
         schema,
@@ -250,16 +265,7 @@ function callingAgent(agent, toolName) {
 }
 /** Add mailbox observations from the existing native projection, without retrying delivery. */
 function memberViews(ctx, caller) {
-    const members = ctx.agentTeams.listMembers(caller);
-    const { root } = ctx.agentTeams.membership(caller);
-    const state = ctx.sessionProjections.stateOf(root.session, 'agentTeam');
-    if (state === undefined) throw new Error('Agent Teams projection is not registered');
-    const delivered = new Set(state.delivered), pending = new Map();
-    for (const message of state.messages) {
-        if (!delivered.has(message.id)) pending.set(message.targetId, (pending.get(message.targetId) ?? 0) + 1);
-    }
-    return members.map(member => pending.has(member.id) ? { ...member, diagnostics: [...member.diagnostics,
-        `${pending.get(member.id)} Team message(s) await recorded delivery; inactive status does not mean this work is finished. Do not resend queued work.`] } : member);
+    return memberRows(ctx, caller).map(modelMember);
 }
 /** Register the complete Team tool set in one exact Agent scope. */
 export function apply(ctx, config = {}) {
@@ -288,7 +294,7 @@ export function apply(ctx, config = {}) {
             async execute(args, exec) {
                 const agent = callingAgent(exec.agent, 'spawn_teammate');
                 const context = args.context ?? 'fresh';
-                return await ctx.agentTeams.spawnTeammate(agent, {
+                const result = await ctx.agentTeams.spawnTeammate(agent, {
                     name: args.name,
                     description: args.description,
                     prompt: [
@@ -299,6 +305,7 @@ export function apply(ctx, config = {}) {
                     provider: context === 'fork' ? config.forkProvider : config.freshProvider,
                     signal: exec.signal,
                 });
+                return { member: modelMember(result.member) };
             },
         }));
         register(registerTool(scoped, {
@@ -338,7 +345,7 @@ export function apply(ctx, config = {}) {
                 }
                 // The active-peer read and waiter registration must remain one synchronous
                 // span; awaiting between them can lose the only peer-status edge.
-                const members = memberViews(ctx, caller);
+                const members = memberRows(ctx, caller);
                 const hasActivePeer = members.some(member => member.id !== caller.id && ACTIVE_WAIT_STATUSES.has(member.status));
                 if (!hasActivePeer) {
                     return {

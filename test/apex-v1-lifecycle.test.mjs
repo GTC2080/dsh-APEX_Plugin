@@ -16,7 +16,7 @@ async function fixture(t) {
   t.after(h.close)
   const agent = await h.create('lifecycle-check', 'apex-v1')
   const policy = h.ctx.sandboxPolicy.resolve({ session: agent.session })
-  const directories = h.ctx.apexTemporaryDirectories
+  const directories = h.apexRuntime.apexTemporaryDirectories
   const record = directories.directory(policy)
   return { h, policy, directories, record, root: directories.root.path }
 }
@@ -40,19 +40,19 @@ function diagnostics(t) {
 
 test('cancelled queued writes return before A finishes, while C retains the same FIFO barrier', onlyMac, async t => {
   const { h, policy } = await fixture(t)
-  const target = await h.ctx.fs.resolve(join(h.cwd, 'queue.txt'))
-  const entered = deferred(), release = deferred(), original = h.ctx.fs.resolve.bind(h.ctx.fs)
+  const target = await h.apexRuntime.fs.resolve(join(h.cwd, 'queue.txt'))
+  const entered = deferred(), release = deferred(), original = h.apexRuntime.fs.resolve.bind(h.apexRuntime.fs)
   let blocked = false
-  t.mock.method(h.ctx.fs, 'resolve', async function(...args) {
+  t.mock.method(h.apexRuntime.fs, 'resolve', async function(...args) {
     if (!blocked) { blocked = true; entered.resolve(); await release.promise }
     return original(...args)
   })
-  const a = h.ctx.fs.writeText(target, 'A', undefined, undefined, policy)
+  const a = h.apexRuntime.fs.writeText(target, 'A', undefined, undefined, policy)
   await entered.promise
   const controller = new AbortController()
-  const b = h.ctx.fs.writeText(target, 'B', undefined, controller.signal, policy)
+  const b = h.apexRuntime.fs.writeText(target, 'B', undefined, controller.signal, policy)
   let cFinished = false
-  const c = h.ctx.fs.writeText(target, 'C', undefined, undefined, policy).finally(() => { cFinished = true })
+  const c = h.apexRuntime.fs.writeText(target, 'C', undefined, undefined, policy).finally(() => { cFinished = true })
   const rejected = assert.rejects(b, { code: 'FS_ABORTED' })
   controller.abort()
   try {
@@ -61,43 +61,51 @@ test('cancelled queued writes return before A finishes, while C retains the same
     assert.equal(existsSync(target.targetKey), false)
   } finally { release.resolve(); await Promise.all([a, rejected, c]) }
   assert.equal(await fs.readFile(target.targetKey, 'utf8'), 'C')
-  assert.equal(h.ctx.fs.mutationTails.size, 0)
+  assert.equal(h.apexRuntime.fs.mutationTails.size, 0)
 })
 
 test('pre-abort and cancellation at dequeue skip writes without losing the next operation', onlyMac, async t => {
   const { h, policy } = await fixture(t)
-  const target = await h.ctx.fs.resolve(join(h.cwd, 'dequeue.txt'))
+  const target = await h.apexRuntime.fs.resolve(join(h.cwd, 'dequeue.txt'))
   const before = new AbortController(); before.abort()
-  await assert.rejects(h.ctx.fs.writeText(target, 'forbidden', undefined, before.signal, policy), { code: 'FS_ABORTED' })
+  await assert.rejects(h.apexRuntime.fs.writeText(target, 'forbidden', undefined, before.signal, policy), { code: 'FS_ABORTED' })
   const controller = new AbortController()
-  const cancelled = h.ctx.fs.writeText(target, 'forbidden', undefined, controller.signal, policy)
+  const cancelled = h.apexRuntime.fs.writeText(target, 'forbidden', undefined, controller.signal, policy)
   controller.abort()
   await assert.rejects(cancelled, { code: 'FS_ABORTED' })
-  await h.ctx.fs.writeText(target, 'after', { kind: 'createIfAbsent' }, undefined, policy)
+  await h.apexRuntime.fs.writeText(target, 'after', { kind: 'createIfAbsent' }, undefined, policy)
   assert.equal(await fs.readFile(target.targetKey, 'utf8'), 'after')
 })
 
 test('cancelling a running file worker waits for its managed process to stop', onlyMac, async t => {
   const { h, policy } = await fixture(t)
-  const target = await h.ctx.fs.resolve(join(h.cwd, 'running.txt'))
+  const target = await h.apexRuntime.fs.resolve(join(h.cwd, 'running.txt'))
   const marker = join(h.cwd, 'worker-pid'), wrapper = join(h.cwd, 'slow-provider.mjs')
-  const original = h.ctx.subprocess.spawn.bind(h.ctx.subprocess)
+  const original = h.apexRuntime.subprocess.spawn.bind(h.apexRuntime.subprocess)
   const { createRequire } = await import('node:module')
   const require = createRequire(new URL('package.json', h.ctx.baseUrl))
   const local = createRequire(require.resolve('@deepseek-ai/dsh-fs-sandbox')).resolve('@deepseek-ai/dsh-fs-local')
   await fs.writeFile(wrapper, `import Native from ${JSON.stringify(pathToFileURL(local).href)};import{writeFile}from'node:fs/promises';
     export default class extends Native{async writeText(...args){await writeFile(${JSON.stringify(marker)},String(process.pid));await new Promise(r=>setTimeout(r,60000));return super.writeText(...args)}}`)
-  t.mock.method(h.ctx.subprocess, 'spawn', function(spec) {
+  t.mock.method(h.apexRuntime.subprocess, 'spawn', function(spec) {
     const index = spec.argv.findIndex(arg => arg.endsWith('/temporary-fs-worker.mjs'))
     if (index < 0) return original(spec)
     const argv = [...spec.argv]; argv[index + 2] = pathToFileURL(wrapper).href
     return original({ ...spec, argv })
   })
   const controller = new AbortController()
-  const write = h.ctx.fs.writeText(target, 'forbidden', undefined, controller.signal, policy)
+  const write = h.apexRuntime.fs.writeText(target, 'forbidden', undefined, controller.signal, policy)
   const rejected = assert.rejects(write, { code: 'FS_ABORTED' })
-  try { await waitUntil(() => existsSync(marker)) } finally { controller.abort() }
-  const pid = Number(await fs.readFile(marker, 'utf8'))
+  let pid
+  try {
+    await waitUntil(async () => {
+      const text = await fs.readFile(marker, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
+      if (!/^[1-9]\d*$/.test(text)) return false
+      pid = Number(text)
+      return true
+    })
+  } finally { controller.abort() }
+  assert.ok(Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid)
   await rejected
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
   assert.equal(existsSync(target.targetKey), false)
@@ -111,7 +119,7 @@ test('close is reentrant and idempotent, blocks new starts, and emits completion
   directories.handles.add({ terminate() { attempts++; reentrant = directories.close(); entered.resolve() }, waitForExit: () => release.promise })
   const closing = directories.close()
   assert.equal(closing, directories.close())
-  assert.throws(() => h.ctx.subprocess.spawn({}), /closing/)
+  assert.throws(() => h.apexRuntime.subprocess.spawn({}), /closing/)
   await entered.promise
   assert.equal(reentrant, closing); assert.equal(attempts, 1)
   assert.equal(existsSync(root), true)
@@ -135,7 +143,7 @@ test('a reentrant close during native synchronous spawn includes the accepted pr
     closing = directories.close()
     return handle
   })
-  const handle = h.ctx.subprocess.spawn({ argv: [process.execPath, '-e', 'setInterval(()=>{},60000)'], cwd: h.cwd, graceMs: 500,
+  const handle = h.apexRuntime.subprocess.spawn({ argv: [process.execPath, '-e', 'setInterval(()=>{},60000)'], cwd: h.cwd, graceMs: 500,
     stdio: { stdin: { data: '' }, stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } } })
   await closing
   assert(terminateCalls >= 1)

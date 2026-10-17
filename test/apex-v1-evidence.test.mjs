@@ -19,7 +19,12 @@ function fixture() {
     return append('tool/result', { message: { content: [{ type: 'tool-result', toolCallId: id,
       isError, content: [{ type: 'text', text }] }] } })
   }
-  return { agent, append, native }
+  const nativeV4 = (id, command, text, isError = false) => {
+    append('tool/call', { callId: id, name: 'bash', arguments: JSON.stringify({ command }) })
+    return append('tool/result', { message: { id: `${id}-result`, role: 'tool',
+      source: { kind: 'tool', callId: id }, toolCallId: id, isError, content: [{ type: 'text', text }] } })
+  }
+  return { agent, append, native, nativeV4 }
 }
 
 test('execution evidence binds commands to their own recorded outputs without inferring a pass', () => {
@@ -39,6 +44,26 @@ test('execution evidence binds commands to their own recorded outputs without in
   assert.ok(value.results.every(row => !Object.hasOwn(row, 'passed') && !Object.hasOwn(row, 'exitCode')))
   assert.equal(JSON.stringify(f.agent.session.snapshotEvents()), before)
   assert.deepEqual(readExecutionEvidence(f.agent, { refs: [value.results[0].ref] }).results, [value.results[0]])
+})
+
+test('execution evidence reads one V4 tool result without duplicating legacy wrappers', () => {
+  const f = fixture()
+  f.nativeV4('v4', 'node v4-check.mjs', 'V4 output')
+  const value = readExecutionEvidence(f.agent)
+  assert.deepEqual(value.results.map(row => [row.tool, row.outputText, row.toolError, row.route]), [
+    ['bash', 'V4 output', false, 'native'],
+  ])
+})
+
+test('evidence excerpts keep Unicode characters intact at both cut points', () => {
+  const f = fixture()
+  const output = 'a'.repeat(1999) + '😀' + 'b'.repeat(1000) + '😀' + 'z'.repeat(1999)
+  f.nativeV4('unicode', 'echo', output)
+  const before = JSON.stringify(f.agent.session.snapshotEvents())
+  const row = readExecutionEvidence(f.agent).results[0]
+  assert.equal(row.outputText.isWellFormed(), true)
+  assert.equal(row.outputText, 'a'.repeat(1999) + '\n[1004 characters omitted]\n' + 'z'.repeat(1999))
+  assert.equal(JSON.stringify(f.agent.session.snapshotEvents()), before)
 })
 
 test('historical evidence survives compaction, replay and later turns without crossing sessions', () => {
@@ -149,7 +174,7 @@ test('native PTC evidence query reads history without rerunning commands or emit
   assert.equal(events.filter(e => e.type === 'system/message').length, 1)
   assert.equal(events.filter(e => e.type === 'user/message' && e.data.source.kind === 'user').length, 1)
   assert.ok(events.filter(e => e.type === 'user/message' && e.data.source.kind !== 'user')
-    .every(e => e.data.source.plugin === '@deepseek-ai/dsh-system-prompt'), 'only native context snapshots are allowed')
+    .every(e => e.data.source.kind === 'runtime-context'), 'only native context snapshots are allowed')
   assert.equal(events.filter(e => e.type === 'tool/ptc-dispatch' && e.data.name === 'apex_read_evidence' && !e.data.isError).length, 1)
   assert.equal(events.filter(e => e.type === 'tool/ptc-dispatch' && e.data.name === 'bash').length, 0)
   assert.equal(readExecutionEvidence(parent).results[0].tool, 'run_code')

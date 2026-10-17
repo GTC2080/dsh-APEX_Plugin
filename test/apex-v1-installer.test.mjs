@@ -1,79 +1,102 @@
 import assert from 'node:assert/strict'
-import { access, cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import test from 'node:test'
-import { installPreset, PRESET_ID, presetSourceFor } from '../apex.js'
+import { harnessAvailable, harnessRoot, native, pluginRoot } from './helpers/harness-v1.mjs'
+import { BUNDLE_PATCH, PRESET_ID } from '../apex.js'
 
-async function temporary(t) {
-  const root = await mkdtemp(join(tmpdir(), 'apex-v1-installer-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  return root
+async function loadYaml(file) {
+  const require = createRequire(join(harnessRoot, 'vendor/include/package.json'))
+  const { load } = require('js-yaml')
+  const { entryListSchema } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis-plugin-include')))
+  return load(await readFile(file, 'utf8'), { schema: entryListSchema })
 }
 
-function roster(root, validate = async () => {}) {
-  return { roots: [{ path: root, trust: 'user' }], list: async () => [], standingKeyFor: validate }
+function flatten(rows) {
+  return rows.flatMap(row => [row, ...(row.group && Array.isArray(row.config) ? flatten(row.config) : [])])
 }
 
-test('create-only installation is identical, private, mount-validated and idempotent', async t => {
-  const root = await temporary(t), validated = []
-  const api = roster(root, async id => { validated.push(id) })
-  await mkdir(join(root, 'apex-v07'))
-  await writeFile(join(root, 'apex-v07', 'original'), 'keep')
-  assert.equal((await installPreset(api)).status, 'installed')
-  assert.equal((await installPreset(api)).status, 'existing')
-  assert.deepEqual(validated, [PRESET_ID, PRESET_ID])
-  assert.deepEqual(await readFile(join(root, PRESET_ID, 'agent.cordis.yml')), await readFile(join(presetSourceFor(), 'agent.cordis.yml')))
-  assert.equal(await readFile(join(root, 'apex-v07', 'original'), 'utf8'), 'keep')
-  if (process.platform !== 'win32') {
-    assert.equal((await stat(join(root, PRESET_ID))).mode & 0o777, 0o700)
-    assert.equal((await stat(join(root, PRESET_ID, 'preset.yml'))).mode & 0o777, 0o600)
+test('APEX uses an ordered declarative bundle patch instead of a directory installer', async () => {
+  const manifest = JSON.parse(await readFile(join(pluginRoot, 'package.json'), 'utf8'))
+  assert.deepEqual(manifest.dsh.bundle.patch, BUNDLE_PATCH)
+  assert.deepEqual(manifest.dsh.bundle.patch, [
+    './cordis.patch.yml',
+    './presets/apex-v1/agent.cordis.yml',
+  ])
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-agent-preset'], '0.2.0-rc.2')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-agent-preset-registry'], '0.2.0-rc.2')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-experimental-agent-team'], '0.2.0-rc.2')
+  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-experimental-client-ui-agent-team'], '0.2.0-rc.2')
+  assert.equal(PRESET_ID, 'apex-v1')
+  assert.equal((await import('../apex.js')).installPreset, undefined)
+  assert.equal((await import('../apex.js')).apply, undefined)
+})
+
+test('APEX declaration keeps its scoped execution realm and display metadata', async () => {
+  const [patch, preset] = await Promise.all([
+    loadYaml(join(pluginRoot, 'cordis.patch.yml')),
+    loadYaml(join(pluginRoot, 'presets/apex-v1/agent.cordis.yml')),
+  ])
+  assert.equal(patch.find(row => row.id === 'apex-preset-installer'), undefined)
+  assert.equal(preset.length, 1)
+  assert.equal(preset[0].insert.length, 1)
+  const declaration = preset[0].insert[0]
+  assert.equal(declaration.id, 'preset-apex-v1')
+  assert.equal(declaration.name, '@deepseek-ai/dsh-agent-preset')
+  assert.equal(declaration.config.id, PRESET_ID)
+  assert.equal(declaration.config.name, 'APEX 1.0')
+  assert.equal(declaration.config.order, 10)
+  assert.ok(declaration.config.description)
+  const session = declaration.config.plugins.find(row => row.id === 'apex-session')
+  assert.deepEqual(session.isolate, {
+    subprocess: 'dsh-apex',
+    sandbox: 'dsh-apex',
+    fs: 'dsh-apex',
+    apexTemporaryDirectories: 'dsh-apex',
+  })
+  assert.equal(session.group, true)
+  assert.ok(session.config.some(row => row.id === 'apex-validation'))
+})
+
+test('native compatibility admission accepts current APEX peers and rejects the previous baseline without exemptions', { skip: !harnessAvailable }, async () => {
+  const { evaluatePluginCompatibility, getDshRuntimeVersion } = await native('dsh-app-boot')
+  const manifest = JSON.parse(await readFile(join(pluginRoot, 'package.json'), 'utf8'))
+  assert.equal(getDshRuntimeVersion(), '0.2.0-rc.2')
+  assert.equal(evaluatePluginCompatibility(manifest), undefined)
+  const previous = { ...manifest, peerDependencies: Object.fromEntries(
+    Object.keys(manifest.peerDependencies).map(name => [name, '0.2.0-rc.1'])) }
+  const rejected = evaluatePluginCompatibility(previous)
+  assert.equal(rejected.exempted, false)
+  assert.deepEqual(rejected.peers, previous.peerDependencies)
+})
+
+test('APEX and official preset declarations compose without changing native mode rows', { skip: !harnessAvailable }, async () => {
+  const require = createRequire(join(harnessRoot, 'vendor/include/package.json'))
+  const { applyEntryPatches, entryListSchema } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis-plugin-include')))
+  const warn = message => { throw new Error(message) }
+  let entries = []
+  for (const file of [
+    join(harnessRoot, 'packages/bundle/base/cordis.patch.yml'),
+    join(harnessRoot, 'packages/bundle/web-app/cordis.patch.yml'),
+    join(harnessRoot, 'packages/bundle/web-app/presets/standard.patch.yml'),
+    join(harnessRoot, 'packages/bundle/web-app/presets/ptc.patch.yml'),
+    join(harnessRoot, 'packages/bundle/web-app/presets/minimal.patch.yml'),
+    join(harnessRoot, 'packages/bundle/web-app/presets/cordis.patch.yml'),
+    join(pluginRoot, 'cordis.patch.yml'),
+    join(pluginRoot, 'presets/apex-v1/agent.cordis.yml'),
+  ]) {
+    entries = applyEntryPatches(entries, await loadYaml(file), warn)
   }
-})
-
-test('divergent content, including an extra symlink, is never overwritten', async t => {
-  const root = await temporary(t), api = roster(root)
-  await installPreset(api)
-  await writeFile(join(root, PRESET_ID, 'preset.yml'), 'user content')
-  await assert.rejects(installPreset(api), /different content/)
-  assert.equal(await readFile(join(root, PRESET_ID, 'preset.yml'), 'utf8'), 'user content')
-  await symlink(join(root, PRESET_ID, 'preset.yml'), join(root, PRESET_ID, 'unsafe'))
-  await assert.rejects(installPreset(api), /different content/)
-})
-
-test('failed validation removes only a newly created preset, never an existing one', async t => {
-  const root = await temporary(t)
-  const failed = roster(root, async () => { throw new Error('mount rejected') })
-  await assert.rejects(installPreset(failed), /mount rejected/)
-  await assert.rejects(access(join(root, PRESET_ID)), { code: 'ENOENT' })
-  await installPreset(roster(root))
-  await assert.rejects(installPreset(failed), /mount rejected/)
-  await access(join(root, PRESET_ID, 'preset.yml'))
-})
-
-test('an extra empty directory is divergent, not an identical installation', async t => {
-  const root = await temporary(t), api = roster(root)
-  await installPreset(api)
-  await mkdir(join(root, PRESET_ID, 'user-directory'))
-  await assert.rejects(installPreset(api), /different content/)
-  assert.ok((await stat(join(root, PRESET_ID, 'user-directory'))).isDirectory())
-})
-
-test('rejects relative roots, root symlinks, target symlinks and unsupported platforms', async t => {
-  const root = await temporary(t), real = join(root, 'real')
-  await mkdir(real)
-  await symlink(real, join(root, 'alias'), 'dir')
-  await assert.rejects(installPreset(roster('relative')), /absolute/)
-  await assert.rejects(installPreset(roster(join(root, 'alias'))), /real directory/)
-  await symlink(real, join(root, PRESET_ID), 'dir')
-  await assert.rejects(installPreset(roster(root)), /different content/)
-  for (const platform of ['darwin', 'linux', 'win32']) assert.match(presetSourceFor(platform), /apex-v1/)
-  assert.throws(() => presetSourceFor('freebsd'), /unsupported platform/)
-  assert.throws(() => presetSourceFor('darwin', 'apex-v07'), /unknown bundled preset/)
-})
-
-test('concurrently appeared identical tree is accepted without deletion', async t => {
-  const root = await temporary(t), api = roster(root)
-  api.list = async () => { await cp(presetSourceFor(), join(root, PRESET_ID), { recursive: true }); return [] }
-  assert.equal((await installPreset(api)).status, 'existing')
+  const rows = flatten(entries)
+  for (const id of ['preset-standard', 'preset-ptc', 'preset-minimal', 'preset-cordis', 'preset-apex-v1']) {
+    assert.ok(rows.find(row => row.id === id), id)
+  }
+  assert.equal(rows.find(row => row.id === 'preset-apex-v1').config.id, PRESET_ID)
+  for (const id of ['subprocess', 'sandbox', 'fs-sandbox']) {
+    assert.notEqual(rows.find(row => row.id === id)?.disabled, true, id)
+  }
+  assert.equal(rows.find(row => row.id === 'apex-preset-installer'), undefined)
+  assert.equal(rows.find(row => row.id === 'agent-team').name, '@deepseek-ai/dsh-experimental-agent-team')
 })

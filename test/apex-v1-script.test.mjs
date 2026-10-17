@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
+import { promisify } from 'node:util'
 import { z } from 'zod'
 import { readExecutionEvidence } from '../presets/apex-v1/evidence.mjs'
-import { harnessAvailable, native, nativeHarness, pluginRoot, systemText, textResponse, toolResponse } from './helpers/harness-v1.mjs'
+import { harnessAvailable, harnessRoot, native, nativeHarness, pluginRoot, systemText, textResponse, toolResponse } from './helpers/harness-v1.mjs'
 
 const options = { skip: !harnessAvailable || process.platform !== 'darwin', timeout: 30000 }
 const args = (script, extra = {}) => ({ command: 'node --input-type=module', description: 'Exercise script stdin contract', script, ...extra })
+const resultText = block => block?.text ?? block?.content?.[0]?.text
 async function tool(h, agent, name = 'apex_run_script') {
   const { scopeOf } = await native('dsh-scope')
   return h.ctx.tools.get(name, scopeOf(agent.ctx))
@@ -29,29 +31,121 @@ async function untilFile(file) {
   assert.fail('Owned script did not become ready within 5 seconds')
 }
 
-test('native API imports use the Host Loader, including scope and approval identities', options, async t => {
+test('literal argv preserves test exit status through PTC logging and treats metacharacters as data', options, async t => {
   const h = await nativeHarness(); t.after(h.close)
-  const imported = [], importModule = h.ctx.loader.import.bind(h.ctx.loader)
-  h.ctx.loader.import = (specifier, ...rest) => {
-    imported.push(specifier)
-    return importModule(specifier, ...rest)
-  }
   const agent = await h.create()
-  for (const name of ['dsh-scope', 'dsh-sandbox', 'dsh-llm', 'dsh-tools']) {
-    assert.ok(imported.includes(`@deepseek-ai/${name}`), `Host loader must own ${name}`)
-  }
-  const result = await call(h, agent, args('console.log("host-loader-ok")'))
-  assert.equal(result.exitCode, 0); assert.equal(result.stdout.text.trim(), 'host-loader-ok')
+  const run = (argv, extra = {}) => call(h, agent, { argv, description: 'Run literal program arguments', ...extra })
+  const literal = "中文 ' \" `ticks` $(touch injected) ; touch injected;\n*.mjs $HOME"
+  const value = await run([process.execPath, '-e', 'console.log(JSON.stringify(process.argv.slice(1)));', literal, ''])
+  assert.equal(value.exitCode, 0); assert.deepEqual(JSON.parse(value.stdout.text), [literal, ''])
+  await assert.rejects(access(join(h.cwd, 'injected')), { code: 'ENOENT' })
+  assert.equal((await run([process.execPath, '--input-type=module'], { script: 'process.exitCode=7;' })).exitCode, 7)
+  await writeFile(join(h.cwd, 'verdict.test.mjs'), "import assert from 'node:assert/strict'; import {test} from 'node:test'; test('negative control',()=>assert.equal(2+2,5));")
+  const input = { argv: ['/usr/bin/env', '-u', 'NODE_TEST_CONTEXT', process.execPath, '--test', 'verdict.test.mjs'], description: 'Keep the real test status' }
+  const reply = await h.runCode(agent, `const result=await tools.apex_run_script(${JSON.stringify(input)}); const assert=await import('node:assert/strict'); assert.equal(result.exitCode,1); console.log('diagnostic after test'); assert.equal(result.exitCode,1); return result;`)
+  assert.equal(reply.isError, false, reply.error?.message)
+  assert.match(reply.value.result, /diagnostic after test/); assert.match(reply.value.result, /fail 1/)
+  const row = readExecutionEvidence(agent).results.find(row => row.tool === 'apex_run_script')
+  assert.match(row.outputText, /\[exit code: 1\]/)
+  await writeFile(join(h.cwd, 'verdict.test.mjs'), "import assert from 'node:assert/strict'; import {test} from 'node:test'; test('positive control',()=>assert.equal(2+2,4));")
+  const passed = await call(h, agent, input)
+  assert.equal(passed.exitCode, 0); assert.match(passed.stdout.text, /pass 1/)
+  assert.equal((await run(['apex_missing_literal_program_39d5'])).exitCode, 127)
+  for (const bad of [[], [''], ['x\0'], ['\ud800'], [42]]) await assert.rejects(run(bad))
+  await assert.rejects(run([process.execPath], { command: 'echo conflict' }))
+  await assert.rejects(call(h, agent, { description: 'Missing invocation' }))
+  await assert.rejects(call(h, agent, { command: 'node', description: 'Missing script' }))
+  const definition = await tool(h, agent)
+  assert.match(definition.presentCall(input).rawInput, /verdict\.test\.mjs/)
+  assert.match(definition.output.render(input, passed)[0].text, /positive control/)
 })
 
-test('native API import failure stays a mount failure without a filesystem fallback', options, async t => {
+test('literal argv retains read-only denial, pre-abort, cancellation and timeout outcomes', options, async t => {
   const h = await nativeHarness(); t.after(h.close)
-  const importModule = h.ctx.loader.import.bind(h.ctx.loader)
-  h.ctx.loader.import = (specifier, ...rest) => {
-    if (specifier === '@deepseek-ai/dsh-scope') throw new Error('fixture Host scope resolution refused')
-    return importModule(specifier, ...rest)
-  }
-  await assert.rejects(h.create(), /fixture Host scope resolution refused/)
+  const agent = await h.create(), { setSandboxMode } = await native('dsh-sandbox-policy')
+  const input = script => ({ argv: [process.execPath, '--input-type=module'], script, description: 'Literal argv lifecycle check' })
+  const write = input("import {writeFileSync} from 'node:fs'; writeFileSync('must-not-run','bad');")
+  setSandboxMode(agent.session, 'read-only')
+  const denied = await call(h, agent, write)
+  assert.notEqual(denied.exitCode, 0); assert.equal(denied.sandbox.mode, 'read-only'); assert.equal(denied.sandbox.denied, true)
+  setSandboxMode(agent.session, 'workspace-write')
+  const pre = new AbortController(); pre.abort(new Error('argv pre-abort'))
+  await assert.rejects(call(h, agent, write, pre.signal), /argv pre-abort/)
+  await assert.rejects(access(join(h.cwd, 'must-not-run')), { code: 'ENOENT' })
+  const controller = new AbortController(), ready = join(h.cwd, 'argv-pid.json')
+  const running = call(h, agent, input(`import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(ready)},JSON.stringify(process.pid)); setInterval(()=>{},1000);`), controller.signal)
+  const cancelled = assert.rejects(running, error => error.name === 'AbortError')
+  const pid = await untilFile(ready); controller.abort(); await cancelled
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
+  const timed = await call(h, agent, { ...input('process.on("SIGTERM",()=>process.exit(0)); setInterval(()=>{},1000);'), timeoutMs: 1000 })
+  assert.equal(timed.exitCode, 0); assert.equal(timed.timedOut, true)
+})
+
+test('documented negative-test workflow preserves the child result and cleans only its copy', options, async t => {
+  const h = await nativeHarness(undefined, { workspaceOnly: true }); t.after(h.close)
+  const agent = await h.create()
+  const document = await readFile(join(pluginRoot, 'docs/APEX-1.0.md'), 'utf8')
+  const example = document.match(/```js\n(\/\/ APEX negative-test example\n[\s\S]*?)\n```/)?.[1]
+  assert.ok(example)
+  // A component test inherits NODE_TEST_CONTEXT; the ordinary desktop does not.
+  const code = example.replace("['node',", JSON.stringify(['/usr/bin/env', '-u', 'NODE_TEST_CONTEXT', process.execPath]).slice(0, -1) + ',')
+  assert.notEqual(code, example)
+  const source = 'export const solve = n => n * 2;\n'
+  const tests = "import {test} from 'node:test'; import assert from 'node:assert/strict'; import {solve} from './solver.mjs'; test('double input',()=>assert.equal(solve(2),4));\n"
+  await writeFile(join(h.cwd, 'solver.mjs'), source)
+  await writeFile(join(h.cwd, 'solver.test.mjs'), tests)
+  const result = await h.runCode(agent, code)
+  assert.equal(result.isError, false, JSON.stringify(result))
+  assert.match(result.value.result, /APEX deliberate failure/)
+  const evidence = readExecutionEvidence(agent).results.find(row => row.tool === 'apex_run_script')
+  assert.match(evidence.outputText, /\[exit code: 1\]/)
+  const { readdir } = await import('node:fs/promises')
+  assert.deepEqual((await readdir(h.cwd)).sort(), ['solver.mjs', 'solver.test.mjs'])
+  assert.equal(await readFile(join(h.cwd, 'solver.mjs'), 'utf8'), source)
+  assert.equal(await readFile(join(h.cwd, 'solver.test.mjs'), 'utf8'), tests)
+  await rm(join(h.cwd, 'solver.test.mjs'))
+  const failed = await h.runCode(agent, code)
+  assert.equal(failed.isError, true)
+  assert.deepEqual(await readdir(h.cwd), ['solver.mjs'])
+})
+
+test('native API imports preserve the built runtime scope identity', options, async t => {
+  const h = await nativeHarness(); t.after(h.close)
+  const agent = await h.create()
+  const result = await call(h, agent, args('console.log("built-runtime-ok")'))
+  assert.equal(result.exitCode, 0); assert.equal(result.stdout.text.trim(), 'built-runtime-ok')
+})
+
+test('official tsx source launch preserves scope identity and mounts the script tool', options, async () => {
+  const source = `
+    import assert from 'node:assert/strict';
+    import {nativeHarness} from ${JSON.stringify(new URL('./helpers/harness-v1.mjs', import.meta.url).href)};
+    const h = await nativeHarness();
+    try {
+      const agent = await h.create();
+      const {scopeOf} = await import('@deepseek-ai/dsh-scope');
+      const tool = h.ctx.tools.get('apex_run_script', scopeOf(agent.ctx));
+      assert.ok(tool);
+      const result = await tool.execute(${JSON.stringify(args('console.log("source-runtime-ok")'))},
+        {agent, signal: new AbortController().signal});
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.stdout.text.trim(), 'source-runtime-ok');
+      assert.equal(result.sandbox.mode, 'workspace-write');
+      assert.equal(h.adapter.requests.length, 0);
+      console.log('source-runtime-ok');
+    } finally { await h.close(); }
+  `
+  const { stdout } = await promisify(execFile)(process.execPath,
+    ['--import', 'tsx/esm', '--input-type=module', '-e', source],
+    { cwd: harnessRoot, env: { ...process.env, DSH_CHECKOUT: harnessRoot }, timeout: 20000, maxBuffer: 65536 })
+  assert.match(stdout, /source-runtime-ok/)
+})
+
+test('missing native Bash contract stays a mount failure', options, async t => {
+  const h = await nativeHarness(); t.after(h.close)
+  const get = h.ctx.tools.get.bind(h.ctx.tools)
+  t.mock.method(h.ctx.tools, 'get', (name, ...rest) => name === 'bash' ? undefined : get(name, ...rest))
+  await assert.rejects(h.create(), /requires the native confining Bash and its foreground output contract/)
   assert.equal(h.adapter.requests.length, 0)
 })
 
@@ -87,7 +181,7 @@ test('real PTC executes multiline source and retains canonical outcomes, origina
   assert.deepEqual(events.find(e => e.type === 'tool/ptc-dispatch-start').data.arguments, input)
   const outer = events.find(e => e.type === 'tool/result').data.message.content[0]
   assert.ok(!outer.isError, JSON.stringify(outer))
-  const value = JSON.parse(outer.content[0].text)
+  const value = JSON.parse(resultText(outer))
   assert.equal(value.exitCode, 0)
   assert.equal(value.workdir, await realpath(h.cwd))
   assert.deepEqual(JSON.parse(value.stdout.text), { text, cwd: value.workdir })
@@ -119,12 +213,14 @@ test('the first-request script example is executable verbatim and keeps PTC payl
   let example, step = 0
   const h = await nativeHarness(request => {
     const system = systemText(request)
+    assert.match(system, /For that failure-path check, use apex_run_script argv for the copied test too/)
     assert.equal(system.split(example).length - 1, 1, 'one executable example in the actual SDK')
     return ++step === 1 ? toolResponse('script-example', 'run_code', { code: example, description: 'Execute the advertised example verbatim' }) : textResponse('done')
   }); t.after(h.close)
   const agent = await h.create(), definition = await tool(h, agent)
   assert.match(definition.parameters.properties.script.description, /outer PTC string is evaluated before this tool/)
   assert.match(definition.description, /tools\.\* exists only in the calling PTC program/)
+  assert.match(definition.description, /Use argv for deliberately failing test copies too/)
   assert.match(definition.description, /external interpreters and saved scripts do not inherit it/)
   assert.match(definition.description, /Fetch tool data in PTC, then pass values or workspace files/)
   example = definition.description.split('PTC usage: ')[1]
@@ -133,7 +229,7 @@ test('the first-request script example is executable verbatim and keeps PTC payl
   const events = agent.session.snapshotEvents()
   const results = events.filter(e => e.type === 'tool/result').flatMap(e => e.data.message.content)
   assert.equal(results.length, 1); assert.ok(!results[0].isError, JSON.stringify(results))
-  const result = JSON.parse(results[0].content[0].text)
+  const result = JSON.parse(resultText(results[0]))
   assert.equal(result.exitCode, 0)
   assert.equal(result.stdout.text.trim(), '`ticks` ${literal}')
   assert.equal(events.filter(e => e.type === 'tool/ptc-dispatch').length, 1)
@@ -161,7 +257,7 @@ test('external scripts do not inherit the PTC SDK; programmatic values preserve 
   const events = agent.session.snapshotEvents()
   const outer = events.find(e => e.type === 'tool/result').data.message.content[0]
   assert.ok(!outer.isError, JSON.stringify(outer))
-  const { probe, forwarded, misuse } = JSON.parse(outer.content[0].text)
+  const { probe, forwarded, misuse } = JSON.parse(resultText(outer))
   assert.equal(probe.exitCode, 0); assert.equal(probe.stdout.text.trim(), 'undefined')
   assert.equal(forwarded.exitCode, 0)
   assert.deepEqual(JSON.parse(forwarded.stdout.text), { text: literal })
@@ -304,8 +400,10 @@ test('native policy and approval remain per-session and one-shot; full file acce
     await h.turn(agent, 'Exercise one native approval path.')
     const events = agent.session.snapshotEvents(seq)
     const nested = events.find(e => e.type === 'tool/ptc-dispatch').data
-    const outer = events.find(e => e.type === 'tool/result').data.message.content[0]
-    return { nested, value: outer.isError ? undefined : JSON.parse(outer.content[0].text), events }
+    const outerEvent = events.find(e => e.type === 'tool/result').data
+    const outer = outerEvent.message.content[0]
+    const text = resultText(outer)
+    return { nested, value: outerEvent.isError || text.startsWith('Error:') ? undefined : JSON.parse(text), events }
   }
   const sentinel = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { stdio: 'ignore' })
   await once(sentinel, 'spawn')
@@ -340,10 +438,16 @@ test('native policy and approval remain per-session and one-shot; full file acce
   assert.equal(h.ctx.sandboxPolicy.resolve({ session: agent.session }).mode, 'read-only')
   const again = await call(h, agent, write(inside)); assert.notEqual(again.exitCode, 0)
   setSandboxMode(agent.session, 'workspace-write')
-  await assert.rejects(call(h, agent, { ...write(inside), sandbox_permissions: 'workspace-write', justification: 'Not a widening request' }), /not strictly wider/)
-  assert.equal(requests.length, 1, 'invalid escalation does not reach approval')
-  stopAnswering()
+  const repeated = await call(h, agent, { ...write(inside), sandbox_permissions: 'workspace-write', justification: 'Keep the effective mode' })
+  assert.equal(repeated.exitCode, 0); assert.equal(repeated.sandbox.mode, 'workspace-write')
+  const stillConfined = await call(h, agent, { ...write(outside), sandbox_permissions: 'workspace-write', justification: 'Keep the effective mode' })
+  assert.notEqual(stillConfined.exitCode, 0); assert.equal(stillConfined.sandbox.denied, true)
+  await assert.rejects(access(outside), { code: 'ENOENT' })
+  assert.equal(requests.length, 1, 'repeating the effective mode requires no new approval')
   setSandboxMode(agent.session, 'danger-full-access')
+  await assert.rejects(call(h, agent, { ...write(inside), sandbox_permissions: 'workspace-write', justification: 'Narrower request' }), /not strictly wider/)
+  assert.equal(requests.length, 1, 'a narrower request does not reach approval')
+  stopAnswering()
   const signal = await call(h, agent, args(`try { process.kill(${sentinel.pid}, 'SIGTERM'); console.log('UNSAFE'); } catch(e) {console.log(e.code);}`))
   assert.equal(signal.sandbox.mode, 'danger-full-access'); assert.match(signal.stdout.text, /EPERM/)
   assert.equal(sentinel.signalCode, null)

@@ -1,19 +1,27 @@
+import { sliceText } from './text.mjs'
 import { lstatSync, mkdtempSync, realpathSync, writeSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, relative, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { z } from 'zod'
 
 export const name = 'apex-temporary-runtime'
 export const inject = ['loader', 'sessions', 'sessionProjections']
-export const Config = z.object({ privateTemp: z.boolean().default(true) }).strict().default({ privateTemp: true })
+export const Config = z.object({
+  privateTemp: z.boolean().default(true),
+  workspaceOnly: z.union([z.boolean(), z.array(z.string().refine(value => isAbsolute(value) && !value.includes('\0') && value.isWellFormed(), {
+    message: 'workspaceOnly entries must be absolute directory paths',
+  })).min(1)]).default(false),
+}).strict()
+  .refine(config => !config.workspaceOnly || config.privateTemp, { message: 'workspaceOnly requires privateTemp: true' })
+  .default({ privateTemp: true, workspaceOnly: false })
 
 export function contains(root, path) {
   const tail = relative(root, path)
   return tail === '' || (tail !== '..' && !tail.startsWith('..' + sep) && !isAbsolute(tail))
 }
 
-function identity(path) {
+export function directoryIdentity(path) {
   const stat = lstatSync(path)
   if (!isAbsolute(path) || realpathSync(path) !== path || !stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error('APEX temporary storage requires unchanged canonical directories')
@@ -24,6 +32,9 @@ function identity(path) {
 /** Host-owned directories survive agent unload/resume, and are reclaimed only after managed execution drains. */
 export async function apply(ctx, input) {
   const config = Config.parse(input ?? {})
+  if (config.workspaceOnly && process.platform !== 'darwin') throw new Error('APEX workspaceOnly requires the macOS Seatbelt backend')
+  const selectedWorkspaces = new Map(Array.isArray(config.workspaceOnly)
+    ? config.workspaceOnly.map(path => [path, directoryIdentity(path)]) : [])
   const [{ Service }, { default: NativeSubprocess }] = await Promise.all([
     '@deepseek-ai/cordis', '@deepseek-ai/dsh-subprocess-local',
   ].map(name => ctx.root.loader.import(name)))
@@ -50,24 +61,31 @@ export async function apply(ctx, input) {
       if (this.closing) throw new Error('APEX execution is closing; temporary storage is unavailable')
       if (!this.applies(policy)) throw new Error('APEX temporary storage requires an APEX session')
       const workspace = realpathSync(policy.workspaceRoot)
-      const workspaceIdentity = identity(workspace)
+      const workspaceIdentity = directoryIdentity(workspace)
+      const requested = resolve(this.ctx.sessions.get(policy.sessionId)?.header.cwd ?? policy.workspaceRoot)
+      const selected = selectedWorkspaces.has(requested) ? requested : workspace
+      const selectedIdentity = selectedWorkspaces.get(selected)
+      if (selectedIdentity !== undefined && (workspace !== selected || directoryIdentity(selected) !== selectedIdentity)) {
+        throw new Error('APEX configured workspace identity changed; refusing execution')
+      }
       const shared = [realpathSync('/tmp'), realpathSync(tmpdir())]
       if (shared.some(path => contains(workspace, path))) throw new Error('APEX workspace must not contain a shared temporary root')
       if (!this.root) {
         const path = realpathSync(mkdtempSync(join(tmpdir(), 'apex-sessions-')))
-        this.root = { path, identity: identity(path) }
+        this.root = { path, identity: directoryIdentity(path) }
       }
-      if (identity(this.root.path) !== this.root.identity) throw new Error('APEX temporary container identity changed')
+      if (directoryIdentity(this.root.path) !== this.root.identity) throw new Error('APEX temporary container identity changed')
       if (contains(workspace, this.root.path) || contains(this.root.path, workspace)) {
         throw new Error('APEX workspace and temporary container must be disjoint')
       }
       let record = this.records.get(policy.sessionId)
       if (!record) {
         const path = realpathSync(mkdtempSync(join(this.root.path, 'session-')))
-        record = { path, identity: identity(path), workspace, workspaceIdentity }
+        record = { path, identity: directoryIdentity(path), workspace, workspaceIdentity,
+          workspaceOnly: config.workspaceOnly === true || selectedIdentity !== undefined }
         this.records.set(policy.sessionId, record)
       }
-      if (record.workspace !== workspace || record.workspaceIdentity !== workspaceIdentity || identity(record.path) !== record.identity) {
+      if (record.workspace !== workspace || record.workspaceIdentity !== workspaceIdentity || directoryIdentity(record.path) !== record.identity) {
         throw new Error('APEX workspace or temporary directory identity changed; refusing execution')
       }
       return record
@@ -89,7 +107,7 @@ export async function apply(ctx, input) {
       const report = (outcome, error) => {
         try {
           writeSync(2, 'APEX temporary cleanup: ' + JSON.stringify({ outcome, phase, managedProcessExit, directoryCleanup, root,
-            ...error ? { error: String(error).slice(0, 1024) } : {} }) + '\n')
+            ...error ? { error: sliceText(String(error), 0, 1024) } : {} }) + '\n')
           return true
         } catch (error) {
           // A broken diagnostic sink must not prevent resource cleanup; surface its failure after cleanup is attempted.
@@ -109,9 +127,9 @@ export async function apply(ctx, input) {
         managedProcessExit = 'confirmed'
         if (root !== null) {
           phase = 'identity'
-          if (identity(root) !== this.root.identity) throw new Error('Temporary container identity changed')
+          if (directoryIdentity(root) !== this.root.identity) throw new Error('Temporary container identity changed')
           for (const record of this.records.values()) {
-            if (identity(record.path) !== record.identity) throw new Error('Temporary directory identity changed')
+            if (directoryIdentity(record.path) !== record.identity) throw new Error('Temporary directory identity changed')
           }
           // Do not begin an unabortable recursive removal with an exhausted local budget.
           if (performance.now() + 250 >= deadline) throw new Error('Insufficient local cleanup budget to start removal')

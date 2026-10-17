@@ -1,3 +1,4 @@
+import { sliceText } from './text.mjs'
 import { z } from 'zod'
 
 /** Harness displays a bounded JSON Schema subset; Zod enforces the full input schema. */
@@ -16,7 +17,7 @@ function displayedSchema(schema) {
 function* inputIssues(issues, prefix = []) {
   for (const issue of issues) {
     const path = [...prefix, ...issue.path]
-    yield `${path.join('.') || 'arguments'}: ${issue.message}${issue.code === 'invalid_union' ? ' (union alternatives below)' : ''}`.slice(0, 512)
+    yield sliceText(`${path.join('.') || 'arguments'}: ${issue.message}${issue.code === 'invalid_union' ? ' (union alternatives below)' : ''}`, 0, 512)
     if (issue.code === 'invalid_union') {
       // Show the nearest alternatives first, without selecting or accepting one.
       for (const branch of [...issue.errors].sort((a, b) => a.length - b.length)) {

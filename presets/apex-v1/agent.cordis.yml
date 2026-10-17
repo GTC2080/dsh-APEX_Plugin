@@ -1,135 +1,168 @@
-# APEX 1.0: official v0.1.6-alpha.1 PTC, with scoped Teams and generic evidence.
-- id: persona
-  name: '@deepseek-ai/dsh-persona'
-  config:
-    suffix: Your working directory is {{cwd}}.
-    prefix: |-
-      You are APEX, a capable assistant powered by {{model}}.
-      Understand the user's goal and inspect the relevant context before acting. Reuse native tools and existing project patterns; add only necessary complexity.
-      Keep tool payloads as data: use JSON-escaped double-quoted strings in PTC for content containing backticks, backslashes or ${...}; String.raw still interpolates. If apex_run_script is listed, prefer it for disposable multiline checks; keep reusable project code in files.
-      Use existing project test commands or the test runner's documented file-selection syntax. A successful output-filtering pipeline does not prove its test command succeeded.
-      Choose independent parallel work when it helps, and integrate the results. Derive checks from requirements, preserve failures, and distinguish observations from acceptance.
-      apex_review is optional read-only code/image review: it can read files, search and inspect images, but cannot execute commands, write even temporary files, or delegate. Use yourself or a capable teammate for execution. Treat review findings as hypotheses; resolve material uncertainty with existing evidence or the smallest relevant check before editing. A review is not a test run; do not require either for every task.
-      Batch related changes, validate in proportion to risk, and reuse recorded evidence when code, inputs and relevant environment have not changed. Deliver when the requested work is done; do not restart verification without a concrete reason.
-      job_output waits at most 60000 ms per call (30000 ms by default); this is not a job or project deadline. If still running, continue only in a separate PTC request; do not loop or batch long waits inside one run_code. present accepts 1 to 8 files per call; split larger deliveries into separate calls.
-      Stop only processes owned by this task: use job_kill with a returned job id, never global process-name cleanup. Prefer apex_validate_web for browser checks; any custom browser must be headless with a fresh private user-data directory, never the user's browser profile. In custom scripts, use finally on success, failure and cancellation: close connections, stop and await owned processes, then remove exactly the disposable profile; keep screenshots and deliverables outside it. Report cleanup failures as incomplete cleanup, which may include partial deletion. Limit claims to owned resources actually observed. When observation is denied, fails, or lacks a final result, mark only the affected resource state as unknown and retain other confirmed facts. A zero exit code does not prove that no processes or temporary files remain. Never scan and delete unrelated temporary directories.
-
-- id: agent-instructions
-  name: '@deepseek-ai/dsh-agent-instructions'
-  config:
-    maxBytes: 65536
-
-- id: apex-temporary-context
-  name: dsh-apex/apex-v1/temporary-context
-
-- id: tool-bash
-  name: '@deepseek-ai/dsh-tool-bash'
-  disabled: !!js process.platform === 'win32' || process.platform === 'darwin'
-
-- id: macos-bash
-  name: dsh-apex/apex-v1/bash
-  disabled: !!js process.platform !== 'darwin'
-
-- id: tool-pwsh
-  name: '@deepseek-ai/dsh-tool-pwsh'
-  disabled: !!js process.platform !== 'win32'
-
-- id: tool-fs
-  name: '@deepseek-ai/dsh-tool-fs'
-
-- id: tool-fs-search
-  name: '@deepseek-ai/dsh-tool-fs-search'
-  config:
-    sampleOverCapGlobResults: false
-
-- id: tool-jobs
-  name: '@deepseek-ai/dsh-tool-jobs'
-  config:
-    maxWaitTimeoutMs: 60000
-
-- id: command-goal
-  name: '@deepseek-ai/dsh-command-goal'
-
-- id: tool-goal
-  name: '@deepseek-ai/dsh-tool-goal'
-
-- id: planning
-  name: cordis:group
-  group: true
-  isolate:
-    planMode: true
-  config:
-    - id: plan-mode
-      name: '@deepseek-ai/dsh-plan-mode'
+# APEX 1.0.1 is a user-authored preset declaration; the official bundle keeps native presets separate.
+- insert:
+    - id: preset-apex-v1
+      name: '@deepseek-ai/dsh-agent-preset'
       config:
-        section: |
-              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+        id: apex-v1
+        name: APEX 1.0.1
+        description: 原生 PTC、按需任务协作、只读审查与浏览器验证；不加载全局技能目录。
+        order: 10
+        plugins:
+          - id: apex-session
+            name: cordis:group
+            group: true
+            isolate:
+              subprocess: dsh-apex
+              sandbox: dsh-apex
+              fs: dsh-apex
+              apexTemporaryDirectories: dsh-apex
+            config:
+              # APEX 1.0: official v0.2.0-rc.1 PTC, with scoped Teams and generic evidence.
+              - id: persona
+                name: '@deepseek-ai/dsh-persona'
+                config:
+                  suffix: Your working directory is {{cwd}}.
+                  prefix: |-
+                    You are APEX, a capable assistant powered by {{model}}.
+                    Understand the user's goal and inspect the relevant context before acting. Reuse native tools and existing project patterns; add only necessary complexity.
+                    Keep tool payloads as data: use JSON-escaped double-quoted strings in PTC for content containing backticks, backslashes or ${...}; String.raw still interpolates. If apex_run_script is listed, prefer it for disposable multiline checks; keep reusable project code in files.
+                    Run tests and saved programs with apex_run_script argv, for example ["node", "--test", "test/audit.test.mjs"], keeping existing project commands and the test runner's documented file-selection syntax. Await its result and inspect exitCode, signal, timedOut, stdout and stderr before printing diagnostics in PTC; argv preserves literal arguments and the program's status. If Bash pipelines are necessary, set -o pipefail before the pipeline, or capture ${PIPESTATUS[0]} immediately and propagate the tested command's status. Handle expected nonzero statuses explicitly; a successful filter or trailing command is not proof of success.
+                    For new self-tests, reuse the project's assertion-based runner; dependency-free Node checks can use node:test and node:assert/strict. If retaining a counter-based script, set process.exitCode = 1 when any check fails, preserving cleanup and output. Check a new or changed test driver's failure path once in a disposable copy with a deliberately wrong case: require a nonzero exit and matching failure summary, then run the intended checks. For that failure-path check, use apex_run_script argv for the copied test too, with workdir if needed; prepare the copy and clean only its owned directory in PTC try/finally. Print or return the complete program result before cleanup, and verify the intended assertion failed with a complete runner summary; distinguish setup errors, timeouts and cleanup errors. Printed FAIL messages and wrapping a log-only script in node --test do not report failed assertions.
+                    Stop when required fixture setup fails; do not run checks on missing inputs. Follow task-specific filesystem limits even when the sandbox allows more. Create unique fixture directories; clean only ones this task actually created.
+                    Choose independent parallel work when it helps, and integrate the results. Derive checks from requirements, preserve failures, and distinguish observations from acceptance.
+                    apex_review is optional read-only code/image review: it can read files, search and inspect images, but cannot execute commands, write even temporary files, or delegate. Use yourself or a capable teammate for execution. Treat review findings as hypotheses; resolve material uncertainty with existing evidence or the smallest relevant check before editing. A review is not a test run; do not require either for every task.
+                    Review delegation follows the Host subagent depth setting. If a teammate reaches the depth limit, return the review request to the Lead; do not create replacement teammates to bypass it.
+                    Batch related changes, validate in proportion to risk, and reuse recorded evidence when code, inputs and relevant environment have not changed. Deliver when the requested work is done; do not restart verification without a concrete reason.
+                    job_output waits at most 60000 ms per call (30000 ms by default); this is not a job or project deadline. If still running, continue only in a separate PTC request; do not loop or batch long waits inside one run_code. present accepts 1 to 8 files per call; split larger deliveries into separate calls.
+                    For local HTML/JS browser checks, use tools.apex_validate_web from PTC, including ordinary forms, DOM state and persistence; set require_canvas:false for pages without a canvas. It owns the headless browser, private profile and cleanup. On macOS, custom Chrome launches through bash/apex_run_script can fail under temporary-file and process-signal confinement even after danger-full-access approval. Use the provided browser tool before building a CDP/Playwright runner or requesting browser-launch escalation. If its supported actions cannot check a requirement, report that part as unverified; do not disable browser sandboxing or repeat a blocked launch.
+                    Stop only processes owned by this task: use job_kill with a returned job id, never global process-name cleanup. Any custom browser must be headless with a fresh private user-data directory, never the user's browser profile. In custom scripts, use finally on success, failure and cancellation: close connections, stop and await owned processes, then remove exactly the disposable profile; keep screenshots and deliverables outside it. Report cleanup failures as incomplete cleanup, which may include partial deletion. Limit claims to owned resources actually observed. When observation is denied, fails, or lacks a final result, mark only the affected resource state as unknown and retain other confirmed facts. A zero exit code does not prove that no processes or temporary files remain. Never scan and delete unrelated temporary directories.
 
-              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+              - id: agent-instructions
+                name: '@deepseek-ai/dsh-agent-instructions'
+                config:
+                  maxBytes: 65536
 
-              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+              - id: apex-temporary-context
+                name: dsh-apex/apex-v1/temporary-context
 
-              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+              - id: tool-bash
+                name: '@deepseek-ai/dsh-tool-bash'
+                disabled: !!js process.platform === 'win32' || process.platform === 'darwin'
 
-              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+              - id: macos-bash
+                name: dsh-apex/apex-v1/bash
+                disabled: !!js process.platform !== 'darwin'
 
-              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+              - id: tool-pwsh
+                name: '@deepseek-ai/dsh-tool-pwsh'
+                disabled: !!js process.platform !== 'win32'
 
-- id: compaction
-  name: cordis:group
-  group: true
-  isolate:
-    compaction: true
-    toolResultPruner: true
-  config:
-    - id: compaction-basic
-      name: '@deepseek-ai/dsh-compaction-basic'
+              - id: tool-fs
+                name: dsh-apex/apex-v1/file-tools
 
-    - id: command-compact
-      name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-fs-search
+                name: '@deepseek-ai/dsh-tool-fs-search'
+                config:
+                  sampleOverCapGlobResults: false
 
-    - id: tool-result-pruner
-      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
-      config:
-        thresholdChars: 8192
-        headChars: 4096
-        tailChars: 1024
+              - id: tool-jobs
+                name: '@deepseek-ai/dsh-tool-jobs'
+                config:
+                  maxWaitTimeoutMs: 60000
 
-- id: apex-team
-  name: dsh-apex/apex-v1/team
+              - id: command-goal
+                name: '@deepseek-ai/dsh-command-goal'
 
-- id: apex-cancellation
-  name: dsh-apex/apex-v1/cancellation
+              - id: tool-goal
+                name: '@deepseek-ai/dsh-tool-goal'
 
-- id: apex-review
-  name: dsh-apex/apex-v1/review
+              - id: planning
+                name: cordis:group
+                group: true
+                isolate:
+                  planMode: true
+                config:
+                  - id: plan-mode
+                    name: '@deepseek-ai/dsh-plan-mode'
+                    config:
+                      section: |
+                            You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
 
-- id: apex-validation
-  name: dsh-apex/apex-v1/validation
+                            Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
 
-- id: apex-evidence
-  name: dsh-apex/apex-v1/evidence
+                            The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
 
-- id: tool-ask-user
-  name: '@deepseek-ai/dsh-tool-ask-user'
+                            Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
 
-- id: tool-todo
-  name: '@deepseek-ai/dsh-tool-todo'
-  config:
-    allowParallelInProgress: true
+                            Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
 
-- id: tool-web
-  name: '@deepseek-ai/dsh-tool-web'
-  config:
-    fetch: true
-    searchTimeoutMs: 60000
+                            When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
 
-- id: tool-presentation
-  name: '@deepseek-ai/dsh-agent-tool-presentation'
-  config:
-    mode: ptc
+              - id: compaction
+                name: cordis:group
+                group: true
+                isolate:
+                  compaction: true
+                  toolResultPruner: true
+                config:
+                  - id: compaction-basic
+                    name: '@deepseek-ai/dsh-compaction-basic'
 
-- id: present
-  name: '@deepseek-ai/dsh-tool-present'
-  config:
-    maxFiles: 8
+                  - id: command-compact
+                    name: '@deepseek-ai/dsh-command-compact'
+
+                  - id: tool-result-pruner
+                    name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                    config:
+                      thresholdChars: 8192
+                      headChars: 4096
+                      tailChars: 1024
+
+              - id: apex-team
+                name: dsh-apex/apex-v1/team
+
+              - id: apex-cancellation
+                name: dsh-apex/apex-v1/cancellation
+
+              - id: apex-review
+                name: dsh-apex/apex-v1/review
+
+              - id: apex-validation
+                name: dsh-apex/apex-v1/validation
+
+              - id: apex-evidence
+                name: dsh-apex/apex-v1/evidence
+
+              - id: apex-search
+                name: dsh-apex/apex-v1/search
+                config:
+                  mode: off
+
+              - id: apex-evidence-flow
+                name: dsh-apex/apex-v1/evidence-flow
+                config:
+                  mode: off
+
+              - id: tool-ask-user
+                name: '@deepseek-ai/dsh-tool-ask-user'
+
+              - id: tool-todo
+                name: '@deepseek-ai/dsh-tool-todo'
+                config:
+                  allowParallelInProgress: true
+
+              - id: tool-web
+                name: '@deepseek-ai/dsh-tool-web'
+                config:
+                  fetch: true
+                  searchTimeoutMs: 60000
+
+              - id: tool-presentation
+                name: '@deepseek-ai/dsh-agent-tool-presentation'
+                config:
+                  mode: ptc
+
+              - id: present
+                name: '@deepseek-ai/dsh-tool-present'
+                config:
+                  maxFiles: 8

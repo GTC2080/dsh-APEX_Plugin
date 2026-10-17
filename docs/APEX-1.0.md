@@ -1,10 +1,12 @@
-# APEX 1.0 开发与迁移说明
+# APEX 1.0.1 开发与迁移说明
+
+> 当前版本核验日期：2026-09-30
 
 ## 定位与边界
 
-1.0 是通用任务增强插件，不是新的 Harness、执行循环、模型路由器或领域 benchmark 框架。只修改插件和必要的用户级注册／默认预设；官方源码、预设和构建保持不变。版本固定为 `dsh-apex@1.0.0`，预设 `apex-v1`，界面 APEX 1.0，Cordis 安装器 `apex-preset-installer`。
+1.0 是通用任务增强插件，不是新的 Harness、执行循环、模型路由器或领域 benchmark 框架。只修改插件和必要的用户级注册／默认预设；官方源码、预设和构建保持不变。当前本地版本为 `dsh-apex@1.0.1`，预设 `apex-v1`，选择器显示 APEX 1.0.1。APEX 通过官方 `dsh-agent-preset-registry` 与 `dsh-agent-preset` 的 bundle 声明注册，不再复制旧式预设目录或运行安装器。
 
-源码和 Git 目录保留原位。历史 `index.js`、旧预设和测试保留原文，不导出、不打包为新运行框架。新入口 `apex.js`，子路径 `dsh-apex/apex-v1/*`。不创建旧包别名。
+源码和 Git 目录中的旧安装器、历史预设和非 v1 测试将随版本清理；研究产物数据保留。当前元数据以 `presets/apex-v1/agent.cordis.yml` 为准，不再读取旧 `preset.yml` 或 `index.js`。新入口 `apex.js`，子路径 `dsh-apex/apex-v1/*`。不创建旧包别名。
 
 ## 原生能力与最小插件层
 
@@ -19,6 +21,7 @@
 | `evidence.mjs` | 按需读取当前会话的实际工具事件，区分 PTC 子调用与外围程序结果；现有 `eventAt()` 调用保留至官方提供适用的分页替代接口，不新增同步历史读取封装 |
 | `bash.mjs` | 仅 macOS，执行前按原生声明拒绝额外参数，argv 扩展点追加 Seatbelt 信号限制；原生工具声明、文件策略、审批、超时与进程管理不变 |
 | `script.mjs` | 在同一个受保护的 macOS 执行器下提供可选 stdin 脚本入口，复用原生权限 API、结果 schema 和显示，不自建进程管理器 |
+| `file-tools.mjs` | 为嵌套图片依赖绑定隔离文件服务，文件工具实现、schema 和图片交接继续复用官方代码 |
 | `cancellation.mjs` | 原生 host-only 会话投影维护取消状态，pre-step 阻止用户取消后的自动通知启动模型请求；不增加持久化队列或调度器 |
 
 `tools.mjs` 共用原生注册、输入校验及调用示例。完整约束由现有 Zod 校验；Harness 当前不支持展示的 JSON Schema 数值／长度上限转换为字段说明。对 schema 允许空对象的工具，在官方生成的 SDK 工具说明中提供 `await tools.<name>({})` 示例；参数全可选不等于可以省略参数对象。`tools.list_agents()` 会在进入插件前被原生 PTC 拒绝，`as any` 不会改变这一行为。参数不会被自动改写，失败不会被替换为成功；调用说明降低歧义，不保证模型永不误用。
@@ -27,11 +30,60 @@ Zod 联合类型拒绝时展开分支的相对字段路径，优先展示错误�
 
 首轮直接 PTC，没有 Minimal 引导或手写 PTC 提示词拼接。SDK 出现的长工具声明由官方生成，不是逐轮重复 APEX 注入。原生权限／环境 context snapshot 保留；不把官方安全上下文误判为插件污染。
 
+## 独立模式与同进程切换
+
+APEX、官方 PTC 和 Minimal 可以在同一个 Host 中共存。通过原生预设选择器切换空白会话；已开始的会话仍受官方 `agent-preset/locked` 限制，新建会话即可选择其他模式。不需要关闭 APEX、修改补丁或重启 Host 才能使用官方模式。更新插件 JavaScript 包后的重新加载属于版本升级，不属于日常模式切换。
+
+`apex-execution-services` 与 `apex-session` 使用官方 Cordis 的同名隔离作用域，APEX 的文件、沙箱、子进程及临时目录服务只供该组合使用。原生 `subprocess`、`sandbox`、`fs-sandbox` 始终启用，官方预设使用这些原生实例。
+
+保留工具 `run_code` 共用 Host 入口，不能仅靠预设作用域选择执行后端。因此 bundle 保留原生 `ptc-runtime` 条目及其配置，将它放入独立命名作用域，并在公共 `PtcRuntime` 接口上增加按会话预设分流的适配器。官方模式委托原生实例；APEX 使用同一官方 Node 运行器类、同一份经验证的配置，在 APEX 服务作用域中创建的实例。不会按调用改写全局服务、复制官方执行循环或修改 Harness 源码。此适配器是 Host 插件层的一部分，不宣称安装 APEX 后 Host 完全没有扩展。
+
+`test/apex-v1-mode-isolation.test.mjs` 覆盖同进程多次选择、Minimal 持久终端、开始对话后的预设锁定、原生服务身份、运行器配置继承，以及 APEX/PTC 并发执行时的文件和进程归属。与临时目录、取消及清理回归一起验证；这些检查使用脚本化模型响应，不证明真实模型质量提升。
+
 ## 会话私有临时目录（macOS）
 
-APEX bundle 使用官方补丁语法停用 `subprocess`、`sandbox`、`fs-sandbox`，并注册 `apex-temporary-runtime`、`apex-temporary-sandbox`、`apex-temporary-fs` 三项 Host provider。它们复用同版本官方服务。文件／沙箱后端的自定义配置应放在对应的新条目上；旧条目的配置不会自动迁移。其他预设的文件策略与命令行为继续委托原生实现，APEX 之外不创建私有临时目录。不修改官方源码、模型或权限默认值。
+APEX bundle 在独立的 `apex-execution-services` 作用域中注册 `apex-temporary-runtime`、`apex-temporary-sandbox`、`apex-temporary-fs`，复用同版本官方服务。APEX 专属文件／沙箱配置放在对应条目上；原生条目的自定义配置继续用于官方模式，不会自动复制到 APEX 专属后端。APEX 之外不创建私有临时目录。不修改官方源码、模型或权限默认值。
 
 仅 macOS APEX 的 `workspace-write` 将写入范围收窄到工作区与当前会话的随机私有目录。Bash、`apex_run_script`、PTC 共用 `SandboxProvider`；`TMPDIR`、`TMP`、`TEMP` 指向私有目录，原生 Node PTC 仍保持可见 `process.env` 为空，但 `os.tmpdir()` 返回当前私有目录。工作区和私有目录本身不可移除，内部文件仍可正常清理。工作区不得包含共享临时根目录，也不得与 Host 私有容器重叠。读取权限没有收窄，不承诺跨会话读取隔离。`read-only` 仍禁止写入；显式批准或配置的 `danger-full-access` 保留原生文件豁免，不能将其作为隔离状态使用。
+
+任务可以要求比沙箱更窄的文件范围。若要求全部文件留在工作区，测试夹具也必须留在工作区，不能因私有临时区可写而使用它。macOS 的裸 `mktemp -d` 可能优先选择系统临时目录，不能仅凭已设置 `TMPDIR` 推断创建位置。APEX 运行上下文提供两种显式模板：允许私有临时文件时用 `apex_tmp=$(mktemp -d "${TMPDIR%/}/apex.XXXXXX") || exit 1`；工作区内用 `apex_tmp=$(mktemp -d "./.apex.XXXXXX") || exit 1`。这些写入示例仅适用于任务与沙箱均允许写入的情况；创建失败立即结束，不继续生成无效检查结果。清理范围限于实际创建的随机目录，不能先删除猜测的固定目录。`workspaceOnly` 仍允许删除工作区内已有子目录，无法替命令判断文件归属；本地回归已确认固定路径预清理会删除该路径中的既有内容。
+
+Bash 验证命令接 `tail`、`head` 或 `grep` 时，应显式使用 `set -o pipefail`，或在管道后立即保存 `${PIPESTATUS[0]}` 并检查、传递被测命令状态；预期的非零状态需单独处理。过滤器成功、末尾命令成功或 `|| true` 均不能证明测试成功。这些是 APEX 的调用指引，不会自动修改传入命令、全局打开 `errexit/pipefail`、扩大权限或改变原生工具返回值。本地回归运行真实示例，验证成功、失败即停和合法非零处理；指引进入请求不证明真实模型必然采用，也不代表稳定效率增益。
+
+负向测试副本也通过 `apex_run_script.argv` 单独运行；PTC 负责准备副本、保留完整程序结果和清理。先确认正常测试通过，再运行故意失败副本。下例用于工作区中自包含的 `solver.mjs` 和 `solver.test.mjs`；实际项目需复制测试所需文件，并沿用其运行器。测试退出 1 与 PTC 成功验证这个预期可以同时成立，清理结果单独判断。
+
+```js
+// APEX negative-test example
+const fs = await import('node:fs/promises');
+const path = await import('node:path');
+const assert = (await import('node:assert/strict')).default;
+const directory = await fs.mkdtemp(path.join(process.cwd(), '.apex-failure-'));
+let result;
+try {
+  for (const file of ['solver.mjs', 'solver.test.mjs']) {
+    await fs.copyFile(file, path.join(directory, file));
+  }
+  await fs.appendFile(path.join(directory, 'solver.test.mjs'), "\nimport {test as negativeTest} from 'node:test';\nimport negativeAssert from 'node:assert/strict';\nnegativeTest('APEX deliberate failure',()=>negativeAssert.equal(1,2));\n");
+  result = await tools.apex_run_script({
+    argv: ['node', '--test', '--test-reporter=tap', 'solver.test.mjs'],
+    workdir: directory, description: 'Run the deliberate assertion failure',
+  });
+  console.log(JSON.stringify(result));
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.signal, null);
+  assert.equal(result.timedOut, false);
+  assert.match(result.stdout.text, /^not ok \d+ - APEX deliberate failure$/m);
+  assert.match(result.stdout.text, /^# fail 1$/m);
+  for (const field of ['cancelled', 'skipped', 'todo']) {
+    assert.match(result.stdout.text, new RegExp('^# ' + field + ' 0$', 'm'));
+  }
+} finally {
+  await fs.rm(directory, { recursive: true, force: false });
+}
+return result;
+```
+
+准备失败会抛错，清理仍针对本次创建的目录执行；清理失败也会抛错。创建失败时没有目录可清理。运行器未启动、超时、信号终止或其他测试失败均不能当作这个预期断言的验证成功。以上不会自动识别任意 Shell 包装内部的子进程状态。
 
 Host 通过原生 Session 的实际 preset 投影判断适用范围，首次需要时分配目录；并发调用复用同一条记录。主会话与 fresh／fork 队友各有目录，同一 Host 内的卸载和冷恢复复用原目录。回合结束、idle、取消及 agent disposed 都不会提前删除仍可被后台任务使用的文件。正常 Host 关闭时拒绝新进程启动，对同一份受管句柄快照逐项尝试终止、等待退出，再检查目录身份并精确删除；重复关闭复用同一结果。无法确认退出或目录身份改变时不开始删除；删除本身失败时可能已经部分删除，不承诺完整保留。强制杀死 Host／系统崩溃不能保证回收；官方 CLI 的关闭超时或重复中断也可能触发强制退出。插件不扫描删除其他运行实例的目录。重启后分配新目录，通过原生已记录的 runtime context 告知模型；需要跨重启保留的内容应放在工作区。
 
@@ -51,7 +103,28 @@ Host 通过原生 Session 的实际 preset 投影判断适用范围，首次需�
 
 `privateTemp` 默认 `true`，只影响 macOS APEX；关闭时不分配目录、不添加临时目录上下文，文件和进程沙箱委托原生实现。自定义 sandbox runner 无法满足原生 Seatbelt 参数约定时明确拒绝，不静默运行无保护代码。当前实际验证环境为 macOS / Node 24；Linux／Windows 和 Node 22 未实测。
 
-定向验证：`node --test test/apex-v1-temporary.test.mjs test/apex-v1-lifecycle.test.mjs test/apex-v1-review.test.mjs`。组件夹具使用现有 live profile 只读解析依赖，临时工作文件与脚本化会话记录集中在可回收夹具内，不设置第二个 `DSH_HOME`、不挂载真实模型适配器、不启动另一个应用。测试覆盖真实 registry 创建／恢复、fresh／fork、后台 jobs、取消、Host 关闭后恢复、目录替换、版本冲突和关闭开关。全 profile 验证必须另外走官方 CLI，组件通过不能替代实际启动。
+### 可选的工作区写入限制
+
+任务明确要求测试夹具也留在工作区时，可在用户补丁中指定工作区，并在无任务运行的维护窗口重新加载：
+
+```yaml
+- id: apex-temporary-runtime
+  config:
+    workspaceOnly:
+      - /absolute/canonical/task-workspace
+```
+
+`workspaceOnly` 默认 `false`；保留 `true` 对全部 APEX 会话启用的原有行为，也接受非空的工作区路径列表。列表项必须是已存在的规范绝对目录，不能是符号链接、相对路径或目录前缀。只匹配会话的工作区根目录，不自动包含子目录或同名前缀目录；同一根目录的任务共享该限制。加载时保存目录身份，后续发现配置目录被替换就拒绝执行，不静默回退到默认范围。配置要求 `privateTemp: true`，当前只支持 macOS Seatbelt；无效配置会拒绝加载。
+
+选中的 APEX 会话在 `workspace-write` 下通过现有沙箱限制 Bash、`apex_run_script`（含 `argv`）、直接 PTC 和 `write/edit` 的文件写入；工作区外的私有／共享临时区也不可写。`TMPDIR/TMP/TEMP` 与 `os.tmpdir()` 指向会话工作区，文件工具提前返回 `FS_SANDBOX_DENIED`。未选中的 APEX 会话保留默认私有临时区；官方 PTC／Minimal 不受该配置影响。
+
+配置来自 Host 配置文件，作用于新建、恢复及 fresh／fork APEX 会话；按工作区选择，不是逐会话开关，也不会自动解析任务文字。`read-only` 仍拒绝写入。显式批准或配置的 `danger-full-access` 保留官方豁免，上下文会明确提示 `workspaceOnly` 已失效；需要工作区限制的任务必须保持受限模式。已有管道退出码处理仍由调用方负责。
+
+这是任务代码和文件工具的写入限制，不是读取隔离或所有 Host 写入的限制；会话日志、浏览器验收设施和生命周期管理仍使用 Host 存储。既有私有容器保留用于身份核查及统一清理，但受限任务不能写入其中。工作区夹具属于任务文件，Host 关闭不会删除它们；任务应只清理自己创建的目录。将 `workspaceOnly` 改为 `false` 或删除该项后重启，即恢复默认私有临时区策略，无文件迁移。
+
+本地组件验证覆盖真实文件拒绝、指引、模式边界、卸载恢复、fresh／fork 和重新加载相同配置后的 Host 恢复。配置和现有服务正式连通；全 profile 启动及真实模型采用仍需单独验证，不能由这些检查推断稳定收益。
+
+定向验证：`node --test test/apex-v1-temporary.test.mjs test/apex-v1-lifecycle.test.mjs test/apex-v1-review.test.mjs`。组件夹具使用官方运行时包解析；不读取 live Home 的配置、凭据或依赖链接，临时工作文件与脚本化会话记录集中在可回收夹具内，不设置第二个 `DSH_HOME`、不挂载真实模型适配器、不启动另一个应用。测试覆盖真实 registry 创建／恢复、fresh／fork、后台 jobs、取消、Host 关闭后恢复、目录替换、版本冲突和关闭开关。全 profile 验证必须另外走官方 CLI，组件通过不能替代实际启动。
 
 2026-09-16 初次正式集成验收（本轮生命周期修复前）：完整 APEX 回归 142/142，无失败或跳过。沿用原 live Home 的官方 CLI 实际加载三个新服务，16 个安装文件与源码一致；固定 PTC／Bash／stdin／write／edit 调用和共享临时区哨兵检查通过，真实模型调用为 0。分别验证无运行进程和仍有一个受管进程时的正常停止，退出码均为 0，进程停止且私有容器删除。安装前后的官方客户端构建校验和用户配置摘要保持一致。该结果证明工程集成行为，不表示模型产物质量或推理能力提升。
 
@@ -106,9 +179,23 @@ macOS APEX 的 `tools/pre-execute` 另用官方 `validateJsonSchemaValue` 检查
 
 独立浏览器检查仍优先使用 `apex_validate_web`；自写检查必须使用独立无头实例和私有 profile，在成功、失败和取消路径通过 `finally` 关闭连接、停止并等待自有进程，之后删除该 profile，截图和交付物另存。提示词中的资源归属规则不能保证任意模型脚本遵守；文件写入边界由上文的会话私有临时目录策略执行，同一会话跨调用复用目录，不做全局临时目录清扫。实际进程信号限制由系统执行。原生 `job_kill` 可以通过所有权检查停止本任务先前启动的后台命令；直接从另一次 Bash 对它发信号会被限制。
 
-### 原生 stdin 脚本入口（macOS）
+### 原生 stdin 与字面参数入口（macOS）
 
-`apex_run_script({command, script, description, workdir?, timeoutMs?, sandbox_permissions?, justification?})` 只增加官方 Bash 工具尚未向模型开放的 stdin 通道。`command` 是读取 stdin 的解释器命令，例如 `node --input-type=module`、`python3 -` 或 `bash -s`；`script` 是正文。解释器需已安装，工具不查找、安装或自动切换语言。它是可选前台工具，不替代普通 Bash 或后台 jobs。
+`apex_run_script` 支持两种互斥调用：`{command, script, description, ...}` 保留原有 stdin 通道；`{argv, description, script?, ...}` 用于直接运行测试和已保存程序。两者都接受 `workdir?`、`timeoutMs?`、`sandbox_permissions?` 和 `justification?`。`command` 是读取 stdin 的解释器命令，例如 `node --input-type=module`、`python3 -` 或 `bash -s`。解释器需已安装，工具不安装或自动切换语言。它是可选前台工具，不替代普通 Bash 或后台 jobs。
+
+`argv` 的第一项是程序，其余项是字面参数。空程序、NUL、非法 Unicode 和混用 `command` 均在执行前拒绝；空参数合法。每项按 Bash 字面量编码，再用原生 `exec` 替换 Bash，复用原有执行器与沙箱。没有管道、通配符展开、重定向或尾随打印；未提供 `script` 时发送空 stdin 并关闭。后续输出整理在 PTC 中进行，保留原结果：
+
+```js
+const result = await tools.apex_run_script({
+  argv: ["node", "--test", "test/audit.test.mjs"],
+  description: "Run the project tests"
+});
+console.log(result.stdout.text);
+console.log(result.stderr.text);
+return result; // 保留 exitCode、signal、timedOut 等独立事实
+```
+
+这个入口保留所启动程序的退出状态；程序内部、`npm` 脚本或显式 `bash -c` 仍可能自行吞掉更深层的失败，不能把退出 0 当作完整测量或验收通过。原有 `command + script` 和普通 Bash 调用也不会被自动改写。
 
 ```js
 return await tools.apex_run_script({
@@ -122,6 +209,7 @@ return await tools.apex_run_script({
 - 未指定 `workdir` 时使用当前会话的原生策略根目录；相对目录以它为基准，返回 `workdir` 为传给执行器的初始真实路径。不使用 PTC `process.cwd()` 或修改 Host 的 cwd。脚本内部可改变自身目录，但不会持久到下一次调用。无有效会话目录时拒绝执行，不回退到 Host。
 - `node --input-type=module` 从 stdin 执行时，相对导入基于 `workdir`；保存为文件的 ESM 则相对导入者文件解析，改变 Shell cwd 不会纠正写错的导入。一次性多行检查可用 stdin，项目模块和可复用测试仍保存在项目文件中。Shell 脚本须保留换行或明确分隔符，工具不会修复用空格错误拼接的语句。
 - 复用该 Host 已安装的原生 Bash 公共依赖、前台结果 schema 和呈现方式，不修改官方工具定义。原生 `tools` 策略链、会话文件策略、审批记录、环境清理、输出截断、超时和取消继续生效；macOS 的额外信号隔离也保留。升权只对已批准的这一次调用生效，拒绝／取消后不重试。权限扩大请求必须针对相同解释器命令及正文；关闭审批时不可请求升权。
+- 当前官方 Host 通过 `pluginPackages` 定位选中的原生工具包，并以其规范化路径交给 Loader 解析公共 API。源码启动的 `tsx` 映射和构建产物启动各自保持原生作用域／审批模块身份，避免从 profile 根目录加载另一份模块后找不到已注册的 Bash。缺少包或工具契约时仍拒绝挂载。
 - 返回 `exitCode`、`signal`、`timedOut`、`aborted`、`timeoutMs`、`stdout`、`stderr`、`sandbox` 和 `kind: foreground`，另附 `workdir`。非零退出不是工具协议异常；超时后捕获 SIGTERM 并退出 0 仍报告 `timedOut:true`。取消遵循原生工具取消错误。输出里出现“通过”或进程退出 0 都不认证断言或整体验收；不解析任意脚本的测试文本，也不增加 `passed` 裁判字段。
 - 通过官方 SDK 首轮声明，工具描述附带可直接执行的 PTC 示例；原有 persona 简短说明字面参数和已列出 stdin 入口的用途。没有另一个 persona 注入、逐轮提醒、自动路由、验收账本或强制使用。原始参数和结果继续进入原生事件；`apex_read_evidence` 可回读，但历史不代表新执行。只读 `apex_review` 和官方预设不获得这个入口。
 
@@ -131,6 +219,10 @@ return await tools.apex_run_script({
 
 ## 通用浏览器验证
 
+本地 HTML/JS 页面通过 PTC 调用 `tools.apex_validate_web`；普通表单和 DOM 页面设置 `require_canvas:false`。macOS 上，自建 Chrome 若经 Bash／`apex_run_script` 启动，可能同时遇到私有临时目录权限及嵌套沙箱的进程信号限制；批准 `danger-full-access` 也不会解除后者。已有验证工具由 Host 管理浏览器、独立 profile 和清理，应先复用这个入口。
+
+APEX 的 macOS Shell 结果若为非零退出或超时，并包含已知 Chromium 启动／DevTools 故障，插件会通过官方结果上下文机制提示切换路径，每个活动代理最多一次。提示写入会话日志；原始参数、退出码、输出和失败状态保持不变，不自动重试、不代为批准权限，也不修改官方模式。成功命令和一般权限错误不触发提示。工具不支持的检查仍应标为未验证；这项修复不承诺任意自建浏览器脚本在 Shell 沙箱内都能运行。
+
 `apex_validate_web` 必填 `check_id`、`assertion`、`root`、`interaction_required`。标签和说明不执行断言；实际标准必须通过结构化检查表达。
 
 它会启动独立无头 Chromium，托管并实际执行本地 HTML/JS。可组合文字输入、点击、键盘、单选控件、刷新和 DOM 断言，并用 `width`／`height` 指定截图视口；“本地静态文件”不表示只做静态分析。视口设置／截图本身不证明没有横向溢出，仍需合适的检查或独立测量。
@@ -138,9 +230,13 @@ return await tools.apex_run_script({
 自动扫描和显式操作共用原生命中检查，先通过 `checkVisibility` 识别隐藏或跳过渲染的内容，再检查几何与实际遮挡。默认收起的 `details` 内容即使有非零矩形，也不会被当成遮挡错误；隐藏目标的点击、文字输入、滑块和下拉选值仍失败。扫描不滚动；显式操作先滚动，再检查可见性，允许普通视口外目标和恢复渲染的 `content-visibility:auto` 子树。可见性通过不代表可点击，真实遮挡仍会失败。
 
 - `interactions` 最多 8 项；独立 `{reload:true}` 在同一浏览器、profile 和页面 URL 上刷新，等待新主文档的加载事件后才继续。它保留本次调用的浏览器存储；只证明刷新后的状态，不证明关闭／重启浏览器后仍保留，也不代表直接核验了存储介质。
-- 用已有 `text_checks` 的 before／after 检查表达初态和最终结果，例如下面的保存流程。`reload` 不算鼠标／键盘输入；`interaction_required:true` 仍需实际填表、点击或按键。没有逐动作断言；多个动作中间的正确性不能仅凭最终检查推断。
+- 用已有 `text_checks` 的 before／after 检查表达初态和最终结果，例如下面的保存流程。`reload` 不算鼠标／键盘输入；`interaction_required:true` 仍需实际填表、点击或按键。文本断言不逐动作执行；多个动作中间的正确性不能仅凭最终检查推断。
 - 页面 load 不等于异步业务完成；业务需要时，在刷新前或后加入有界 `wait_ms` 并检查实际结果。刷新与 `clock_steps`、`sequence_start:before-actions` 不兼容，参数会在浏览器启动前被拒绝；刷新后的普通实时采样可用。超时、取消、页面错误和清理沿用现有路径，不自动重试刷新。
 - 每次调用都是新 profile，不能拆成两次调用来测试同一份存储数据。旧调用结果、历史作品与分数不随新能力改写。
+
+可选 `canvas_checkpoints` 在同次实时交互中记录最多 8 个画布截图。每项提供 `id`、`selector` 和 `after_interaction`：0 表示有序交互前，n 表示第 n 项交互结束后；按执行位置非递减排列。`compare_to` 引用此前 checkpoint 的 id，与 `expectation: "same" | "different"` 一起使用。它比较同选择器、同尺寸和 DPR 下的有界 PNG 截图 SHA-256，不接受任意脚本，不解码像素，不与 `clock_steps` 或顶层点击混用。绘制需要等待时，在交互序列中显式加入有界 `wait_ms`。
+
+结果 `canvasChecks` 保存摘要、尺寸及比较结果。截图字节相同不能证明场景完整：检查“隐藏后无残留”时，还应加入“显示与隐藏时画面不同”的控制，避免空白画布误通过。`measurementComplete` 仅在检查完整执行、自有资源清理确认、工件前后稳定且未超时／取消时为 true；合法断言失败仍可完成测量。缺失画布、无法读取截图或尺寸变化属于测量未成立，不能冒充已测到的画面失败。
 
 ```js
 // 按实际页面替换选择器和预期；这是刷新保留检查，不是整个页面的验收。
@@ -176,6 +272,7 @@ const result = await tools.apex_validate_web({
 - 根目录限定工作区内实际目录；特殊文件、逃逸链接、哈希过程中变化拒绝。验证前后产物变化标记 blocked，不把旧截图用于认证新产物。
 - 截图用独立私有临时路径和 SHA-256，未写入产物目录。浏览器、静态服务和用户配置目录在 finally 清理；截图作为证据保留，但临时文件可能被系统清理。`screenshotIdentity` 可复核已记录文件；原生 `read_image` 显示当前路径内容，不被伪装成不可变历史附件。
 - 浏览器清理未达到可确认的进程退出状态时不删除 profile；清理失败仍标记 blocked，并在结果详情中指出保留目录的精确路径及安全删除条件，不因警告列表已满而丢失。取消路径也记录保留路径，便于精确处理，不将请求停止等同于实际退出。
+- profile 和截图目录先独占创建，再记录规范路径及设备／inode 身份；创建时不跟随新目录处的符号链接，身份无法确认时停止准备并报告原路径。profile 清理、截图写入失败后的清理、取消后未返回截图的清理共用身份复核，替换、缺失或无法检查时拒绝删除并保留失败。截图写入与清理同时失败时保留两种错误；人工清理前须重新确认原路径的归属。此检查不保证抵御同用户在检查与删除之间的并发替换，也不保护模型任意 Shell 命令的删除行为。
 - 单工具运行与 CDP 调用有超时、取消和输出边界；没有父代理回合数或项目总时长预算。不默认启动浏览器、后台验证或交付后重新检查。
 
 例如普通真实时间验证可使用以下有序动作，无需启用受控时钟：
@@ -190,7 +287,34 @@ const result = await tools.apex_validate_web({
 
 ## 安装与升级
 
-源码通过本 GitHub 仓库分发，尚未发布到 npm。安装入口为仓库根目录；可以克隆后按下列命令安装，也可用固定 commit 的 GitHub 依赖。
+源码通过本 GitHub 仓库封存，尚未发布到 npm。最终 rc.2 适配随 2026-10-17 封存提交保存；下列安装步骤属于历史兼容基线，恢复前请阅读[封存说明](../ARCHIVE.md)。安装入口为包含 `package.json` 的插件目录。
+
+### 官方桌面端（macOS 已验证）
+
+开发修改保存在独立插件源码目录；官方源码 checkout 用于跟踪接口和运行组件测试，日常执行使用安装的官方桌面应用。更新时同时核对 Harness 版本与四项 peer 声明，不改写应用包。
+
+rc.2 桌面端自带插件 CLI，无需另装 Node 或 pnpm。可在应用菜单“管理 dsh 命令”设置入口；macOS 也可直接调用下列应用内入口。先等任务结束并完全退出应用，再在终端执行：
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "/absolute/apex-source"
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop list
+```
+
+使用桌面端现有的 Home；若原启动方式设置了 `DSH_HOME`，命令也使用同一个值。先确认实际路径，不能因为源码 Web 使用另一目录就迁移桌面会话。`desktop` profile 由官方桌面端管理；普通 CLI 的 `--profile desktop --dump-config` 不受支持，安装后须重新打开应用，在“设置 → Agent 预设”确认四个官方模式及自定义 APEX 1.0.1，创建新会话选择 APEX，再核对实际工具执行。
+
+本地安装是目录链接，源码目录必须保留；修改 JavaScript 后须等任务结束并重启应用。安装不要求把 APEX 设为默认模式，是否设为默认由用户选择。现有会话遵循官方 preset 锁定规则。
+
+回退时等 APEX 任务结束，选择官方预设用于后续任务，完全退出应用后执行：
+
+```sh
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop remove dsh-apex
+```
+
+移除插件不删除会话和工作区。降级 Harness 时同时使用对应基线的插件；不要通过兼容豁免加载不同版本的 peer。
+
+### 官方源码 Web
+
+以下保留源码 Web 安装方式。此 profile 的安装与桌面 profile 独立；安装到其中一个不会自动安装到另一个。
 
 先核验官方构建身份、提交和产物摘要；确认 live `DSH_HOME` 中没有正在运行的任务，停止旧 Host 后再迁移。以下命令中的路径须替换为实际路径，始终使用同一个 live Home：
 
@@ -203,26 +327,46 @@ DSH_HOME="/absolute/live-home" dsh plugin --profile web add \
 DSH_HOME="/absolute/live-home" dsh --profile web --dump-config
 ```
 
-从官方源码运行时，将 `dsh` 换为该 checkout 的 `corepack pnpm dsh`。全新安装跳过旧包移除命令。两项 Teams 依赖必须与 Host 同为 `0.1.6-alpha.1`；它们是普通依赖，由 APEX bundle 各注册一次服务和官方 Web 面板，不安装官方全局 Team 工具层。
+从官方源码运行时，将 `dsh` 换为该 checkout 的 `corepack pnpm dsh`。全新安装跳过旧包移除命令。两项 Teams 依赖以及 preset registry/preset 包必须与 Host 同为 `0.2.0-rc.2`；它们是普通依赖，由 APEX bundle 注册一次服务、官方 Web 面板和 APEX 自定义 preset 声明，不安装旧式全局 Team 工具层。bundle 的 `dsh.bundle.patch` 按顺序加载 `cordis.patch.yml` 和 `presets/apex-v1/agent.cordis.yml`，由官方 Loader 合并声明。
+
+0.1.7-rc.1 起提供插件兼容性准入检查。APEX 的四项原生 peer 依赖现固定为 `0.2.0-rc.2`，旧 rc.1 及 0.1.7 声明会被当前 Host 拒绝；不要用兼容豁免掩盖未验证的版本差异。`--dump-config` 能显示声明不等于插件已通过准入，还需检查实际预设列表及挂载。设置中的 APEX 继续属于“自定义”，可直接使用原生“查看配置”。
+
+0.2.0-rc.1 在工具调度异常后补齐原生错误结果：已开始但缺失已落盘结果的调用标记为 `TOOL_OUTCOME_UNKNOWN`，模型须先核实可能的副作用。APEX 直接保留这些原生记录；已验证内层 PTC 执行一次、外层未知结果保留、重载后续聊不自动重放。联网搜索现在可沿用 DeepSeek 账号认证，APEX 的 PTC 调用保留当前发起会话，API key 路由仍使用原有鉴权。两条路径均以本地脚本化响应验证，未访问真实搜索服务。定时任务已迁入官方可选 bundle；APEX 不依赖或自动安装该功能。既有链接安装无需重复安装插件，只需匹配的官方构建和一次 Host 重启。
+
+0.1.7-rc.2 将模型接入拆分为协议库与提供商插件。已有 Home 若在 profile patch 中显式覆盖了 `llm-deepseek`，须将其 `name` 从 `@deepseek-ai/dsh-llm-deepseek` 改为 `@deepseek-ai/dsh-llm-deepseek-api-key`；保留 id、模型声明、密钥和默认模型。未覆盖的安装直接继承官方配置，不需另加一行提供商。协议库不再是可挂载的 API key 插件。组件测试的底层 adapter 鉴权夹具也使用新版 `resolveAuth`，不读取真实凭据。
+
+从 0.1.7-rc.2 起，新会话模式选择入口由“设置 → 通用设置 → 代码工作工具”控制，旧 `modeSelectionEnabled` 配置已移除。默认预设与入口是否显示分开处理；本次保留既有 APEX 默认和已启用的代码工作工具。原生工具更新与历史记录机制由官方执行循环负责；回归验证现有 APEX 会话的 PTC SDK 可见新注册工具，卸载后移除，官方 PTC 会话不会继承该工具。APEX 没有另建工具同步器。
+
+APEX 的证据、浏览器观察和错误摘要按原有长度预算截取时，现在去掉边界上的半个 UTF-16 代理项，避免把 Emoji 切成无效字符。首尾摘录的省略计数按实际长度计算；完整原文和基于完整文本的验收断言保持不变。这不是按可见字素计数，组合字符仍可能分开；没有增加输出预算或依赖。
+
+新版 Team 面板从持久化会话投影读取成员和任务，APEX 继续调用原生任务服务；创建、认领和完成任务后的面板数据及会话重载均有回归覆盖。浏览器投影不包含团队消息正文，不另建轮询服务或状态存储。
+
+当前插件页支持启用、禁用和 Host 插件配置；APEX 复用该页面及新版原生 Teams 面板。更新已有 JavaScript 包后仍需重启，不把运行时开关等同于热替换代码。APEX preset 是包内声明；升级时由 bundle 重新加载声明，用户级配置仍由官方 registry 管理，不覆盖用户修改。禁用 bundle 不删除历史会话；重新启用会重新加载声明。停用 APEX 前应结束其任务，并为后续任务选择官方预设。
+
+alpha.2 将工具结果保留预算改为 `maxInlineTokens`，官方默认 `12500`；旧 `maxInlineBytes` 不再生效，有自定义预算时必须按 token 重新配置。APEX 不覆盖该策略，直接沿用官方的文本／图片统一预算、首尾保留和原始结果恢复位置。后台任务完成通知未配置 `maxConsecutiveWakes` 时不再有默认次数上限；APEX 保持原生唤醒机制和自身取消保护，不用通知绕过用户取消。
+
+原生连续子代理链默认最多保留 8 个活动子代理；这是驻留数量限制，不是团队总成员数或模型能力指标。子代理结束并释放驻留实例后可复用名额，历史会话和团队成员记录保留。`apex_review` 的委派深度跟随 Host 设置，默认 1；队友触及深度限制时将审查需求交给 Lead，不绕过限制。证据实验使用一次性子代理，仍保留自身明确的深度及输出约束。官方 Inbox 恢复、侧栏子会话、Office 预览和上下文明细直接来自新版 Harness；这些工程改进不构成证据选择算法有效的证明。
+
+`apex_run_script` 复用新版官方权限处理：显式请求当前已经生效的模式可以执行，且不重复申请批准；这不扩大写入范围。扩大权限仍须批准、只作用于该次调用；非法或更窄的显式目标仍按官方规则拒绝。相关检查同时覆盖同模式成功、越界写入失败和一次性授权后的权限恢复。
 
 该基线使用官方 `ptc-runtime-node`，每次 `run_code` 为独立受文件策略约束的 Node 进程，默认单次 120 秒、最大 600 秒，`process.env` 初始为空；超时包含嵌套工具和审批等待，不是任务总预算。macOS 的附加进程信号保护只适用于 Bash／`apex_run_script`，不能推断任意 PTC Node 程序也受到相同信号保护。官方 Messages 协议与图片处理由 Host 提供，APEX 不覆盖模型路由；自定义 API 地址需要按官方升级说明检查协议兼容性。
 
 官方新增的 `session-log-deepseek` 默认贡献完整会话事件后缀。需要保持升级前的数据发送范围时，可在用户级 `cordis.patch.yml` 为该 ID 配置 `enabled: false`；这不关闭正常模型请求，也不是 APEX 隐藏修改的全局默认。不自动启用实验性 Computer Use、Browser Use 或 Auto Review。
 
-配置检查与真实预设挂载成功后，使用原生设置把新会话默认预设设为 `apex-v1`。不要在迁移中途启动 Host。插件安装器只创建新预设；相同内容可重复安装，目录不安全、内容不同、Host 不兼容时明确失败，不覆盖用户预设。
+配置检查与 bundle 声明挂载成功后，使用原生设置选择 `apex-v1`；需要时再设置为新会话默认。不要在迁移中途启动 Host。官方 registry 负责 preset roster 和选择策略；APEX 不写入旧 `.agent-presets` 目录，也不覆盖用户 preset。
 
-旧包名没有兼容别名。旧会话和测试作品不删除、不改写；旧任务不保证继续执行。旧预设目录不会被安装器自动删除。移除 APEX 时使用原生 CLI 移除 `dsh-apex` 并选择官方默认预设；只移除已确认无人使用的 Teams 依赖，不回写旧会话。
+旧包名没有兼容别名。旧会话和测试作品不删除、不改写；旧任务不保证继续执行。旧预设目录不会由本包自动删除。移除 APEX 时使用原生 CLI 移除 `dsh-apex` 并选择官方默认预设；只移除已确认无人使用的 Teams 依赖，不回写旧会话。
 
 ## 安装安全与失败策略
 
-1. 固定官方基线 `v0.1.6-alpha.1`，提交 `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d`。安装、启动前核验官方 build profile、commit、产物摘要；不通过就停止，不新建第二套安装绕过。
+1. 固定官方基线 `v0.2.0-rc.2`，提交 `639ed015397290b3745d163aafe02ffee4aa3f84`。源码运行核验 official build profile、commit、产物摘要；桌面运行核验官方应用版本、签名与打包运行时描述；不通过就停止，不新建第二套安装绕过。
 2. live 维护窗口停止无任务运行的旧 Web。使用官方 CLI 移除旧依赖／bundle、加入 `dsh-apex` 与匹配官方 Teams 服务和面板依赖。安装配置不触碰凭据、模型、沙箱或会话。
-3. 安装器检查实际 Host 与官方 Teams 依赖版本、服务能力；不存在或不匹配时失败。使用固定原生 Cordis ID 各注册一次 Teams 服务和面板，不安装官方全局 Team 工具层。
-4. 只创建 `apex-v1`，相同内容幂等，不覆盖 divergent 用户预设或不安全目录。真实 `standingKeyFor()` 挂载失败只清理本次创建的目录，已有内容不动。
-5. 模块、bundle、配置和实际挂载检查成功后，通过原生设置切换新会话默认预设。检查旧依赖／bundle 为零、新依赖／bundle 各一份。
+3. 官方 Loader 校验实际 Host 与 preset registry/preset、Teams 依赖版本和服务能力；不存在或不匹配时失败。使用固定原生 Cordis ID 各注册一次 Teams 服务和面板，不安装旧式全局 Team 工具层。
+4. bundle 以声明方式插入 `preset-apex-v1`，其 `config.id` 为 `apex-v1`，插件组保留 APEX 执行 realm；不写入旧 preset 目录，不覆盖用户声明。
+5. 模块、bundle、配置和实际挂载检查成功后，通过原生设置确认预设可选，需要时再切换默认。检查旧依赖／bundle 为零、新依赖／bundle 各一份。
 6. 失败则停止并报告，不带着半迁移状态启动，不自动回退旧框架。无需恢复旧会话状态；旧会话仅保证保留原记录供查看。
 
-创建式安装器不会热覆盖一个内容不同的既有 `apex-v1`。后续开发更新必须在维护窗口明确处理该用户预设后再安装；不能用覆盖逻辑绕过差异检查。用户想退出 APEX 时可移除 bundle、把默认预设切回官方模式，历史文件仍原样保留。
+声明式 bundle 不会热覆盖用户级 preset 配置。后续开发更新必须在维护窗口重新加载 bundle，并确认新声明已经通过官方 registry 挂载。用户想退出 APEX 时可移除 bundle、把默认预设切回官方模式，历史文件仍原样保留。
 
 ## 测试迁移与验收
 
@@ -234,13 +378,13 @@ npm run check:public
 npm pack --dry-run --json
 ```
 
-原生集成测试需要匹配且已构建的 Harness，以及可解析依赖的隔离测试 profile；`DSH_CHECKOUT` 与 `DSH_HOME` 分别指向这些测试资源。测试使用脚本化模型响应，无 API 费用；浏览器检查使用独立无头 Chromium。缺少 Harness 时相应测试明确跳过，不能把跳过计为原生集成通过。测试配置与运行范围见 [公开版本说明](PUBLICATION.md)。
+原生集成测试使用显式 `DSH_CHECKOUT` 指向已构建且匹配的官方 Harness checkout；helper 解析官方构建包，创建组件级 Cordis／agent fixture 和临时工作区。测试不读取 live Home 的配置、凭据或依赖链接，不设置 `DSH_HOME`，也不启动第二套完整 Harness Home。测试使用 Node 24 和脚本化模型响应，无 API 费用；浏览器检查使用独立无头 Chromium。缺少 Harness 时相应测试明确跳过，不能把跳过计为原生集成通过。测试配置与运行范围见 [公开版本说明](PUBLICATION.md)。
 
 沿用 `node:test`，只运行 `test/apex-v1-*.test.mjs`；无新增测试框架。脚本化模型只用于确定性协议测试，不能作为真实模型能力评分。
 
 | 旧测试的行为 | 1.0 的处理及依据 |
 | --- | --- |
-| 创建式安装、权限、目录／链接安全、并发出现与失败清理 | 保留并迁移至 `apex-v1-installer`，增加新包及 Host 版本检查 |
+| 历史创建式安装、权限、目录／链接安全、并发出现与失败清理 | 创建式安装器已由官方 Loader 声明式 bundle 替代；当前 `apex-v1-installer` 只验证 bundle 外层 patch、registry／preset 组合、manifest／版本和失败拒绝路径，权限、并发与资源清理由对应原生回归覆盖 |
 | Minimal 首轮快照、延后 PTC、能力激活与特殊编辑器 | 设计明确移除；原文件不改，替换为首轮原生 PTC、完整 SDK 与无切换断言 |
 | Pro/Flash 路由、纯文本视觉桥接、自制 worker/等待/接管 | 设计明确移除；替换为实际原生模型继承、fresh/fork、消息、任务板、取消及冷恢复测试 |
 | APEX Shell 解析、路径拦截、持久 cwd | 移除私有实现；通过官方一次性 Shell 验证 workdir、`cd ..`、长命令、Unicode、引号、heredoc、非零退出 |
@@ -265,7 +409,7 @@ npm pack --dry-run --json
 
 ### 公开版本验证
 
-本版本固定兼容基线为 v0.1.6-alpha.1。组件测试使用脚本化响应，不发起真实模型请求；缺少匹配 Harness checkout 时原生集成项明确跳过。CI 的跨平台基础检查不能代替 Linux/Windows 真实宿主集成验证。发布验证结果见 [发布说明](PUBLICATION.md)。
+本版本固定兼容基线为 v0.2.0-rc.2。组件测试使用脚本化响应和官方运行时包解析，不读取 live Home 的配置、凭据或依赖链接，不发起真实模型请求；缺少匹配 Harness checkout 时原生集成项明确跳过。CI 的跨平台基础检查不能代替 Linux/Windows 真实宿主集成验证。历史发布验证结果见 [发布说明](PUBLICATION.md)；旧 alpha 版本的付费实验保留原环境身份，不与本版本混作同条件样本。
 
 脚本工具的首轮说明明确 PTC `tools.*` 与外部解释器隔离：在 PTC 先获取数据，通过数据值或工作区文件交给脚本；不向脚本注入 SDK。错误调用继续以原生非零退出返回，不改写源码、自动恢复或增加提醒。脚本化集成覆盖准确传值、缺失 SDK 的失败语义与原有单份系统消息；这不证明真实模型的错误率已经降低。
 

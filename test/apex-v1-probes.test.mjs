@@ -147,7 +147,7 @@ test('reload ignores stale and child loads, verifies the loaded document and rel
 })
 
 test('text contains checks the complete value while returning bounded observations', async () => {
-  const content = '前'.repeat(600) + '目标🧪' + '尾'.repeat(10000)
+  const content = '前'.repeat(499) + '😀' + '前'.repeat(99) + '目标🧪' + '尾'.repeat(10000)
   const page = createContext({ document: {
     querySelector: selector => selector === '#missing' ? null : { textContent: content },
   } })
@@ -159,6 +159,7 @@ test('text contains checks the complete value while returning bounded observatio
   ], 'after')
   assert.deepEqual(Array.from(result, check => check.passed), [true, false, false])
   assert.ok(result.every(check => check.observed.length <= 500))
+  assert.ok(result.every(check => check.observed.isWellFormed()))
   assert.ok(JSON.stringify(result).length < 2000, 'full text must not become unbounded evidence output')
 })
 

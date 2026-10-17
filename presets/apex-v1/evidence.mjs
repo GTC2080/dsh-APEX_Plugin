@@ -1,3 +1,4 @@
+import { sliceText } from './text.mjs'
 /** Read native execution records without running tools or certifying acceptance. */
 import { isDeepStrictEqual } from 'node:util'
 import { z } from 'zod'
@@ -27,9 +28,9 @@ export const executionEvidenceSchema = {
 }
 
 function excerpt(text) {
-  return text.length <= EXCERPT_CHARS ? text
-    : text.slice(0, EXCERPT_CHARS / 2) + `\n[${text.length - EXCERPT_CHARS} characters omitted]\n`
-      + text.slice(-EXCERPT_CHARS / 2)
+  if (text.length <= EXCERPT_CHARS) return text
+  const head = sliceText(text, 0, EXCERPT_CHARS / 2), tail = sliceText(text, -EXCERPT_CHARS / 2)
+  return head + `\n[${text.length - head.length - tail.length} characters omitted]\n` + tail
 }
 
 /** Query only this session's history; references identify observations, not passes. */
@@ -87,7 +88,16 @@ export function readExecutionEvidence(agent, input = {}, signal) {
       })) continue
       collect(event, event.data.subCallId, call, event.data.content, event.data.isError, 'ptc')
     } else if (event.type === 'tool/result') {
-      for (const block of event.data.message.content) {
+      const message = event.data.message
+      // V4 stores one tool result directly on the producer-owned tool message.
+      // Keep accepting the V3 wrapper below; the call map prevents a malformed
+      // event containing both shapes from being counted twice.
+      if (typeof message.toolCallId === 'string') {
+        const call = calls.get(message.toolCallId)
+        calls.delete(message.toolCallId)
+        if (call !== undefined) collect(event, message.toolCallId, call, message.content, message.isError, 'native')
+      }
+      for (const block of message.content) {
         if (block.type !== 'tool-result') continue
         const call = calls.get(block.toolCallId)
         calls.delete(block.toolCallId)

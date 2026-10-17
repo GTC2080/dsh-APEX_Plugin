@@ -48,7 +48,13 @@ async function hashFile(hash, path, expected, signal) {
 }
 
 /** Hash a static build tree without caches or generated dependency trees. */
-export async function artifactSnapshot(agent, value, signal) {
+export async function artifactSnapshot(agent, value, signal, options = {}) {
+  // The optional exact exclusion is host-owned metadata, never a glob or a directory filter.
+  const excludeFiles = new Set(options.excludeFiles ?? [])
+  if (!Array.isArray(options.excludeFiles ?? [])) throw new Error('excludeFiles must be an array')
+  if ([...excludeFiles].some(file => typeof file !== 'string' || file.length === 0 || isAbsolute(file))) {
+    throw new Error('excludeFiles must contain exact relative paths')
+  }
   const root = await artifactRoot(agent, value)
   const files = []
   const directories = []
@@ -72,6 +78,8 @@ export async function artifactSnapshot(agent, value, signal) {
       const info = await fs.lstat(path)
       if (info.isDirectory()) { await walk(path); continue }
       if (!info.isFile()) throw new Error(`Unsupported non-regular artifact entry: ${relative(root, path)}`)
+      const rel = relative(root, path).split(sep).join('/')
+      if (excludeFiles.has(rel)) continue
       totalBytes += info.size
       if (files.length >= MAX_FILES || totalBytes > MAX_BYTES) throw new Error('Validate a bounded build directory: limit 8192 files / 256 MiB')
       files.push({ path, info })
@@ -92,7 +100,8 @@ export async function artifactSnapshot(agent, value, signal) {
       throw new Error('artifact directory changed during hashing')
     }
   }
-  return { root, hash: hash.digest('hex'), fileCount: files.length, totalBytes, excludedDirectories: [...IGNORED] }
+  return { root, hash: hash.digest('hex'), fileCount: files.length, totalBytes,
+    excludedDirectories: [...IGNORED], ...excludeFiles.size ? { excludedFiles: [...excludeFiles].sort() } : {} }
 }
 
 /** Inspect a recorded screenshot without changing it. */

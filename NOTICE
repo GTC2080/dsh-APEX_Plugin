@@ -26,6 +26,12 @@ reuses the native fs-local backend in a confined worker, and follows its
 per-target mutation queue pattern. Native filesystem validation, version
 guards and atomic publication remain in the upstream implementation.
 
+The current APEX 1.0 integration is reviewed against official Harness
+commit c36a83ff6bb95e3f82cf79f9be7c724270a8aa61 (v0.1.7-alpha.1),
+including the declarative agent-preset registry, runtime package metadata,
+native subagent settings and the updated Teams Web panel. Historical alpha.2
+attribution and experiment baselines remain unchanged.
+
 DeepSeek Harness Minimal and Standard agent compositions:
 
   https://github.com/deepseek-ai/deepseek-harness

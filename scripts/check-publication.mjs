@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const paper = join(root, 'papers/diesel-engine-2026-09-16')
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')
+const privateHomePath = /\/(?:Users|home|Volumes)\/|(?<!private)\/(?:var)\/folders(?:\/|$)|\/private\/(?:var)\/(?!folders(?:$|["')]))/i
 const patterns = [
-  ['private home path', /\/(?:Users|home|Volumes|var\/folders|private\/var)\//i],
+  ['private home path', privateHomePath],
   ['Windows user path', /[A-Z]:\\+Users\\+/i],
   ['credential', /\b(?:sk-|gh[pousr]_)[A-Za-z0-9_-]{20,}/],
   ['private key', /-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----/],
@@ -18,6 +19,17 @@ const sensitive = text => patterns.filter(([, expression]) => expression.test(te
 assert.ok(sensitive(['', 'Users', 'example', 'workspace'].join('/')).includes('private home path'))
 assert.ok(sensitive('sk' + '-' + 'x'.repeat(32)).includes('credential'))
 assert.deepEqual(sensitive('https://example.invalid; outputTokens: 1229906'), [])
+const unicodeUserPath = ['', 'Users', '中文用户名', 'workspace'].join('/')
+const unicodeVolumePath = ['', 'Volumes', '资料', 'workspace'].join('/')
+const genericMacTempPath = ['', 'var', 'folders', 'fixture'].join('/')
+const privateUnicodeChild = ['', 'private', 'var', 'folders中文'].join('/')
+assert.ok(sensitive(unicodeUserPath).includes('private home path'))
+assert.ok(sensitive(unicodeVolumePath).includes('private home path'))
+assert.ok(sensitive(genericMacTempPath).includes('private home path'))
+assert.ok(sensitive(privateUnicodeChild).includes('private home path'))
+const macTempRoot = ['/private', 'var', 'folders'].join('/')
+assert.deepEqual(sensitive(`(subpath "${macTempRoot}")`), [])
+assert.ok(sensitive(`(subpath "${macTempRoot}/fixture")`).includes('private home path'))
 
 function files(directory) {
   return readdirSync(directory).sort().flatMap(name => {
@@ -37,8 +49,11 @@ for (const [path, digest] of Object.entries(manifest.files)) {
 }
 const candidates = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
   .split('\0').filter(Boolean)
+const deleted = new Set(execFileSync('git', ['ls-files', '--deleted', '-z'], { cwd: root, encoding: 'utf8' })
+  .split('\0').filter(Boolean))
+const validCandidates = candidates.filter(path => !deleted.has(path))
 const failures = []
-for (const path of candidates) {
+for (const path of validCandidates) {
   if (/(?:^|\/)(?:node_modules|research|tmp)\//.test(path) || /\.(?:jsonl|log|trace|pem|key)(?:\.gz)?$/i.test(path)) {
     failures.push(path + ': disallowed publication file')
     continue
@@ -58,5 +73,5 @@ for (const arm of ['native', 'apex']) {
   assert.equal(data.overallAcceptance, 'failed')
 }
 assert.deepEqual(failures, [], 'Publication scan failed; matched content is deliberately not printed')
-console.log(JSON.stringify({ publicFilesVerified: current.length, repositoryFilesScanned: candidates.length,
+console.log(JSON.stringify({ publicFilesVerified: current.length, repositoryFilesScanned: validCandidates.length,
   scoredCriteriaPerArm: 37, obviousSecretsOrPrivatePaths: 0 }))

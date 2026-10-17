@@ -1,3 +1,4 @@
+import { sliceText } from './text.mjs'
 import * as script from './script.mjs'
 
 export const name = 'apex-bash-signal-boundary'
@@ -19,21 +20,24 @@ function confined(argv, mode) {
 export async function apply(ctx) {
   if (process.platform !== 'darwin') throw new Error('APEX signal confinement requires macOS')
   const nativeShell = ctx.shell, NativeShell = nativeShell.constructor
-  if (nativeShell.sandboxMode === undefined || typeof NativeShell.prototype.runArgv !== 'function'
-    || typeof NativeShell.prototype.startArgv !== 'function' || !nativeShell.config) {
+  if (nativeShell.sandboxMode === undefined || typeof NativeShell.prototype.executeArgv !== 'function'
+    || typeof NativeShell.prototype.execute !== 'function' || !nativeShell.config) {
     throw new Error('APEX: incompatible native macOS Bash provider')
   }
   class SignalBoundBash extends NativeShell {
-    get config() { return nativeShell.config }
-    runArgv(spec, argv) {
-      // Keep native preparation inside its deadline and cancellation boundary.
-      return super.runArgv(spec, async signal => {
-        const prepared = typeof argv === 'function' ? await argv(signal) : argv
-        signal.throwIfAborted()
-        return confined(prepared, spec.sandboxPolicy.mode)
-      })
+    // The inherited schema would wrap each Volatile field again. Disable it
+    // so the scoped replacement keeps the Host's live Config object.
+    static Config = undefined
+    constructor(ctx) { super(ctx, nativeShell.config) }
+    // Keep signal restrictions inside the official ShellExecution lifecycle,
+    // including its danger-full-access branch and onStarted process facts.
+    executeArgv(spec, argv, onStarted) {
+      const mode = spec.sandboxPolicy?.mode ?? nativeShell.sandboxMode
+      const prepare = typeof argv === 'function'
+        ? async signal => confined(await argv(signal), mode)
+        : confined(argv, mode)
+      return super.executeArgv(spec, prepare, onStarted)
     }
-    startArgv(spec, argv) { return super.startArgv(spec, confined(argv, spec.sandboxPolicy.mode)) }
   }
   // Inherit the Host's live settings instead of registering its namespace a
   // second time. The isolated optional settings service is intentionally absent.
@@ -50,10 +54,32 @@ export async function apply(ctx) {
     if (!schema) return next()
     const violations = validateJsonSchemaValue({ ...schema.parameters, additionalProperties: false }, exec.arguments, 'bash')
     if (violations.length) throw new ToolArgsError([
-      ...violations.slice(0, 8).map(message => message.length > 256 ? message.slice(0, 160) + '…' + message.slice(-80) : message),
+      ...violations.slice(0, 8).map(message => message.length > 256 ? sliceText(message, 0, 160) + '…' + sliceText(message, -80) : message),
       'APEX: command was not executed. Use only fields declared by the current Bash SDK.',
     ])
     return next()
+  })
+  const { createUserMessage } = await ctx.root.loader.import('@deepseek-ai/dsh-llm')
+  const browserHinted = new WeakSet()
+  scoped.on('tools/post-execute', async (exec, result, next) => {
+    const decision = await next(), value = result.value
+    if (decision.kind !== 'accept' || exec.signal?.aborted || browserHinted.has(exec.agent)
+      || !['bash', 'apex_run_script'].includes(exec.name) || value?.kind !== 'foreground'
+      || !(value.timedOut || (typeof value.exitCode === 'number' && value.exitCode !== 0))
+      || !scoped.tools.get('apex_validate_web', exec.agent)) return decision
+    const output = `${value.stderr.text}\n${value.stdout.text}`
+    if (!/ProcessSingleton|process_singleton|Failed to create socket directory|(?:DevTools|CDP)[^\n]{0,80}(?:timeout|timed out|closed)/i.test(output)) return decision
+    browserHinted.add(exec.agent)
+    return { ...decision, additionalContexts: [...decision.additionalContexts ?? [], createUserMessage({
+      source: { kind: 'apex-browser-guidance' }, content: [{ type: 'text', text:
+        'APEX browser execution guidance: this failed shell result contains a Chromium startup or DevTools diagnostic. '
+        + 'For workspace-local HTML/JS, use tools.apex_validate_web with requirement-derived actions and checks. '
+        + 'It manages its own headless browser, private profile and cleanup through the Host. '
+        + 'Bash and apex_run_script on macOS retain process-signal isolation even with danger-full-access; wider file access alone does not make nested Chrome sandboxing compatible. '
+        + 'Do not repeat that browser launch or disable Chrome sandboxing to work around it. '
+        + 'A minimal load probe is: return await tools.apex_validate_web({root:".",check_id:"page-load",assertion:"Page loads",require_canvas:false,interaction_required:false}); '
+        + 'This probe checks loading only. Add supported interactions and postconditions for the actual requirement; report unsupported checks as unverified.' }],
+    })] }
   })
   await scoped.plugin(script).await()
 }

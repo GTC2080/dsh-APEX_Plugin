@@ -1,30 +1,46 @@
-- id: subprocess
-  name: '@deepseek-ai/dsh-subprocess-local'
-  disabled: true
-
-- id: sandbox
-  name: '@deepseek-ai/dsh-sandbox-local'
-  disabled: true
-
-- id: fs-sandbox
-  name: '@deepseek-ai/dsh-fs-sandbox'
-  disabled: true
+- id: ptc-runtime
+  name: '@deepseek-ai/dsh-ptc-runtime-node'
+  isolate:
+    ptcRuntime: dsh-native-ptc
 
 - insert:
-    - id: apex-temporary-runtime
-      name: dsh-apex/apex-v1/temporary-runtime
+    - id: apex-execution-services
+      name: cordis:group
+      group: true
+      isolate:
+        subprocess: dsh-apex
+        sandbox: dsh-apex
+        fs: dsh-apex
+        apexTemporaryDirectories: dsh-apex
+      config:
+        - id: apex-temporary-runtime
+          name: dsh-apex/apex-v1/temporary-runtime
 
-    - id: apex-temporary-sandbox
-      name: dsh-apex/apex-v1/temporary-sandbox
+        - id: apex-temporary-sandbox
+          name: dsh-apex/apex-v1/temporary-sandbox
 
-    - id: apex-temporary-fs
-      name: dsh-apex/apex-v1/temporary-fs
+        - id: apex-temporary-fs
+          name: dsh-apex/apex-v1/temporary-fs
+
+        - id: apex-ptc-binding
+          name: dsh-apex/apex-v1/ptc-binding
+          isolate:
+            ptcRuntime: dsh-native-ptc
+          config:
+            target: apexPtcExecution
+
+    - id: apex-native-ptc-binding
+      name: dsh-apex/apex-v1/ptc-binding
+      isolate:
+        ptcRuntime: dsh-native-ptc
+      config:
+        target: apexNativePtcExecution
+
+    - id: apex-ptc-runtime
+      name: dsh-apex/apex-v1/ptc-runtime
 
     - id: agent-team
       name: '@deepseek-ai/dsh-experimental-agent-team'
 
     - id: ui-agent-team
       name: '@deepseek-ai/dsh-experimental-client-ui-agent-team'
-
-    - id: apex-preset-installer
-      name: dsh-apex

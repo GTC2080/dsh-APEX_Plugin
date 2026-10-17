@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { getEventListeners } from 'node:events'
 import { promises as fs } from 'node:fs'
 import { Server } from 'node:http'
-import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import test from 'node:test'
 import { nativeHarness, harnessAvailable, native, textResponse, toolResponse } from './helpers/harness-v1.mjs'
 import { artifactSnapshot, screenshotIdentity } from '../presets/apex-v1/artifacts.mjs'
@@ -47,9 +47,15 @@ test('artifact hashes cover content, reject unsafe trees and honor cancellation'
   assert.equal((await artifactSnapshot(agent, '.', signal())).hash, first.hash)
   await writeFile(join(root, 'index.html'), 'after')
   assert.notEqual((await artifactSnapshot(agent, '.', signal())).hash, first.hash)
+  await writeFile(join(root, '.apex-native-feedback.json'), 'metadata')
+  const excluded = await artifactSnapshot(agent, '.', signal(), { excludeFiles: ['.apex-native-feedback.json'] })
+  await writeFile(join(root, '.apex-native-feedback.json'), 'different metadata')
+  assert.equal(excluded.hash, (await artifactSnapshot(agent, '.', signal(), { excludeFiles: ['.apex-native-feedback.json'] })).hash)
+  assert.deepEqual(excluded.excludedFiles, ['.apex-native-feedback.json'])
+  await assert.rejects(artifactSnapshot(agent, '.', signal(), { excludeFiles: ['/absolute'] }), /exact relative/)
   await mkdir(join(root, 'node_modules'))
   await writeFile(join(root, 'node_modules/ignored'), 'dependency')
-  assert.equal((await artifactSnapshot(agent, '.', signal())).fileCount, 1)
+  assert.equal((await artifactSnapshot(agent, '.', signal(), { excludeFiles: ['.apex-native-feedback.json'] })).fileCount, 1)
   await assert.rejects(artifactSnapshot(agent, '..', signal()), /inside/)
   await symlink(join(root, 'index.html'), join(root, 'link'))
   await assert.rejects(artifactSnapshot(agent, '.', signal()), /non-regular/)
@@ -289,6 +295,83 @@ test('failed browser startup removes its profile only after confirmed process-ra
   }
 })
 
+test('browser profile cleanup rejects changed ownership or a missing directory', async t => {
+  for (const replacement of ['directory', 'symlink', 'missing']) await t.test(replacement, async t => {
+    const { root, agent } = await fixture(t)
+    await writeFile(join(root, 'index.html'), '<p>Fixture</p>')
+    const retained = await fixture(t)
+    await writeFile(join(retained.root, 'sentinel'), 'preserved')
+    let profile
+    const result = await validation.runValidation({ subprocess: {
+      async resolveExecutable() { return 'fixture-browser' },
+      spawn(request) {
+        profile = request.argv.find(arg => arg.startsWith('--user-data-dir=')).slice('--user-data-dir='.length)
+        t.after(() => rm(profile, { recursive: true, force: true }))
+        return {
+          done: Promise.resolve({ exitCode: 1 }), terminate() {},
+          async waitForExit() {
+            await rename(profile, join(retained.root, 'original'))
+            if (replacement === 'directory') {
+              await mkdir(profile)
+              await writeFile(join(profile, 'sentinel'), 'replacement')
+            } else if (replacement === 'symlink') await symlink(retained.root, profile, 'dir')
+            return true
+          },
+        }
+      },
+    } }, base, { agent, signal: signal() })
+    if (replacement === 'directory') assert.equal(await readFile(join(profile, 'sentinel'), 'utf8'), 'replacement')
+    if (replacement === 'symlink') assert.equal((await lstat(profile)).isSymbolicLink(), true)
+    assert.equal(await readFile(join(retained.root, 'sentinel'), 'utf8'), 'preserved')
+    assert.equal(result.status, 'blocked')
+    assert.equal(result.measurementComplete, false)
+    assert.match(result.cleanup, /profile-remove-failed/)
+    assert.doesNotMatch(result.cleanup, /profile-removed/)
+    assert.match(result.detail, /verify.*ownership/i)
+  })
+})
+
+test('browser profile preparation failure prevents browser startup', async t => {
+  const { root, agent } = await fixture(t)
+  await writeFile(join(root, 'index.html'), '<p>Fixture</p>')
+  t.mock.method(fs, 'mkdtemp', async () => { throw new Error('fixture profile preparation failure') })
+  const result = await validation.runValidation({ subprocess: {
+    async resolveExecutable() { return 'fixture-browser' },
+    spawn() { assert.fail('No browser may start after failed preparation') },
+  } }, base, { agent, signal: signal() })
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.measurementComplete, false)
+  assert.match(result.detail, /fixture profile preparation failure/)
+  assert.equal(result.cleanup, 'server-closed')
+})
+
+test('browser profile ownership failure preserves a link inserted during preparation', async t => {
+  const { root, agent } = await fixture(t), retained = await fixture(t)
+  await writeFile(join(root, 'index.html'), '<p>Fixture</p>')
+  await writeFile(join(retained.root, 'sentinel'), 'preserved')
+  const create = fs.mkdtemp
+  let profile, spawns = 0
+  t.mock.method(fs, 'mkdtemp', async prefix => {
+    profile = await create(prefix)
+    t.after(() => rm(profile, { recursive: true, force: true }))
+    await rename(profile, join(retained.root, 'original'))
+    await symlink(retained.root, profile, 'dir')
+    return profile
+  })
+  const result = await validation.runValidation({ subprocess: {
+    async resolveExecutable() { return 'fixture-browser' },
+    spawn() { spawns++; throw new Error('unexpected browser launch') },
+  } }, base, { agent, signal: signal() })
+  assert.equal(spawns, 0)
+  assert.equal(await readFile(join(retained.root, 'sentinel'), 'utf8'), 'preserved')
+  assert.equal((await lstat(profile)).isSymbolicLink(), true)
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.measurementComplete, false)
+  assert.match(result.detail, /ownership.*not established/)
+  assert.ok(result.detail.includes(profile))
+  assert.equal(result.cleanup, 'server-closed')
+})
+
 test('missing browser returns blocked evidence, never installs or reports a pass', async t => {
   const { root, agent } = await fixture(t)
   await writeFile(join(root, 'index.html'), 'empty')
@@ -359,7 +442,7 @@ test('real browser compares full text while keeping sequence and clock evidence 
   const h = await nativeHarness(); t.after(h.close)
   await writeFile(join(h.cwd, 'index.html'), `<!doctype html><button id="change">Change tail</button><p id="text"></p>
     <script>
-      const output = document.querySelector('#text'), prefix = 'x'.repeat(499);
+      const output = document.querySelector('#text'), prefix = 'x'.repeat(499) + '😀';
       output.textContent = prefix + '1000 目标';
       document.querySelector('#change').onclick = () => output.textContent = prefix + '1001 目标';
     </script>`)
@@ -389,11 +472,101 @@ test('real browser compares full text while keeping sequence and clock evidence 
   assert.match(clock.sequenceChecks[0], /:passed/)
   assert.match(clock.failedSequenceChecks[0], /observedNumber=1000/)
   for (const result of [realtime, clock]) {
+    const strings = value => typeof value === 'string' ? [value]
+      : value && typeof value === 'object' ? Object.values(value).flatMap(strings) : []
+    assert.ok(strings(result).every(text => text.isWellFormed()), 'browser evidence must not split Unicode characters')
     assert.ok(result.sequenceChecks.every(check => check.length < 2000))
     assert.equal(result.artifactStable, true)
     assert.equal(result.overallAcceptance, 'not-assessed')
     assert.match(result.cleanup, /server-closed,browser-terminated,profile-removed/)
   }
+})
+
+test('real browser canvas checkpoints compare bounded PNG evidence', options, async t => {
+  const h = await nativeHarness(); t.after(h.close)
+  await writeFile(join(h.cwd, 'index.html'), `<!doctype html>
+    <canvas id="paint" width="64" height="48" style="width:64px;height:48px"></canvas>
+    <button id="flip">Flip</button>
+    <script>
+      const canvas = document.querySelector('#paint'), context = canvas.getContext('2d')
+      const draw = flipped => { context.fillStyle = flipped ? '#204060' : '#c08020'; context.fillRect(0, 0, 32, 48); context.fillStyle = flipped ? '#c08020' : '#204060'; context.fillRect(32, 0, 32, 48) }
+      draw(false); document.querySelector('#flip').onclick = () => draw(true)
+    </script>`)
+  const agent = await h.create()
+  const result = await web(h, agent, { ...base, interaction_required: true,
+    interactions: [{ click_selector: '#flip' }, { wait_ms: 100 }],
+    canvas_checkpoints: [
+      { id: 'before', selector: '#paint', after_interaction: 0 },
+      { id: 'after', selector: '#paint', after_interaction: 2, compare_to: 'before', expectation: 'different' },
+      { id: 'same', selector: '#paint', after_interaction: 2, compare_to: 'after', expectation: 'same' },
+    ],
+  }); removeCapture(t, result)
+  assert.equal(result.status, 'passed', result.detail)
+  assert.equal(result.measurementComplete, true)
+  assert.equal(result.canvasChecks.length, 3)
+  assert.equal(result.canvasChecks[1].comparison.passed, true)
+  assert.equal(result.canvasChecks[1].comparison.sameBytes, false)
+  assert.equal(result.canvasChecks[2].comparison.passed, true)
+  assert.equal(result.canvasChecks[2].comparison.sameBytes, true)
+})
+
+test('real browser canvas checkpoints reject a blank same-state as different', options, async t => {
+  const h = await nativeHarness(); t.after(h.close)
+  await writeFile(join(h.cwd, 'index.html'), `<!doctype html>
+    <canvas id="blank" width="64" height="48" style="width:64px;height:48px"></canvas>
+    <button id="noop" onclick="void 0">No-op</button>`)
+  const agent = await h.create()
+  const result = await web(h, agent, { ...base, interaction_required: true,
+    interactions: [{ click_selector: '#noop' }, { wait_ms: 100 }],
+    canvas_checkpoints: [
+      { id: 'before', selector: '#blank', after_interaction: 0 },
+      { id: 'after', selector: '#blank', after_interaction: 2, compare_to: 'before', expectation: 'different' },
+    ],
+  }); removeCapture(t, result)
+  assert.equal(result.status, 'failed', result.detail)
+  assert.equal(result.measurementComplete, true)
+  assert.equal(result.canvasChecks[1].comparison.sameBytes, true)
+  assert.equal(result.canvasChecks[1].comparison.passed, false)
+})
+
+test('real browser canvas checkpoint failures remain incomplete when evidence cannot be read', options, async t => {
+  const h = await nativeHarness(); t.after(h.close)
+  await writeFile(join(h.cwd, 'index.html'), '<!doctype html><canvas id="paint" width="64" height="48"></canvas>')
+  const agent = await h.create()
+  const missing = await web(h, agent, { ...base,
+    canvas_checkpoints: [{ id: 'missing', selector: '#does-not-exist', after_interaction: 0 }],
+  }); removeCapture(t, missing)
+  assert.equal(missing.status, 'failed')
+  assert.equal(missing.measurementComplete, false)
+  assert.match(missing.detail, /Canvas checkpoint.*missing/)
+  assert.equal(missing.canvasChecks.length, 0)
+
+  const dangling = { ...base, interactions: [{ wait_ms: 0 }], canvas_checkpoints: [
+    { id: 'later', selector: '#paint', after_interaction: 1, compare_to: 'missing', expectation: 'same' },
+  ] }
+  assert.match(validation.canvasCheckpointContractDenial(dangling), /earlier checkpoint id/)
+  assert.match(validation.canvasCheckpointContractDenial({ ...base, interactions: [{ wait_ms: 0 }, { wait_ms: 0 }], canvas_checkpoints: [
+    { id: 'late', selector: '#paint', after_interaction: 2 },
+    { id: 'early', selector: '#paint', after_interaction: 1, compare_to: 'late', expectation: 'same' },
+  ] }), /nondecreasing/)
+})
+
+test('real browser canvas checkpoint size changes cannot certify a comparison', options, async t => {
+  const h = await nativeHarness(); t.after(h.close)
+  await writeFile(join(h.cwd, 'index.html'), `<!doctype html>
+    <canvas id="paint" width="64" height="48" style="width:64px;height:48px"></canvas>
+    <button id="resize" onclick="paint.width=80">Resize</button>`)
+  const agent = await h.create()
+  const result = await web(h, agent, { ...base, interaction_required: true,
+    interactions: [{ click_selector: '#resize' }, { wait_ms: 100 }],
+    canvas_checkpoints: [
+      { id: 'before', selector: '#paint', after_interaction: 0 },
+      { id: 'after', selector: '#paint', after_interaction: 2, compare_to: 'before', expectation: 'different' },
+    ],
+  }); removeCapture(t, result)
+  assert.equal(result.status, 'failed', result.detail)
+  assert.equal(result.measurementComplete, false)
+  assert.match(result.detail, /selector, size or device pixel ratio/)
 })
 
 test('real controlled clock and native PTC output keep evidence identities and image delivery', options, async t => {
@@ -420,6 +593,36 @@ test('real controlled clock and native PTC output keep evidence identities and i
     .every(e => e.data.message.content.every(block => !block.isError)), 'reading the documented fields must complete through native PTC')
   assert.equal(h.adapter.requests[1].messages.filter(m => m.role === 'user' && m.content.some(b => b.type === 'image')).length, 1,
     'native PTC forwards image attachments as a separate user message')
+})
+
+test('APEX uses the managed browser after a script failure without shell escalation', { ...options, skip: !harnessAvailable || process.platform !== 'darwin' }, async t => {
+  const args = { ...base, require_canvas: false, interaction_required: true,
+    interactions: [{ click_selector: '#save' }, { reload: true }],
+    text_checks: [{ phase: 'after', selector: '#value', equals: 'saved' }],
+  }
+  const h = await nativeHarness((_request, step) => step === 1
+    ? toolResponse('browser-script-failure', 'run_code', { description: 'Failed browser script fixture',
+      code: 'return await tools.apex_run_script({command:"node",description:"Browser failure fixture",script:"console.error(\'CDP timeout: Page.enable\');process.exitCode=2;"});' })
+    : step === 2 ? toolResponse('managed-browser', 'run_code', { description: 'Check saved data after reload',
+      code: `return await tools.apex_validate_web(${JSON.stringify(args)});` }) : textResponse('done'))
+  t.after(h.close)
+  await writeFile(join(h.cwd, 'index.html'), '<!doctype html><button id="save">Save</button><p id="value"></p><script>document.querySelector("#value").textContent=localStorage.getItem("value")||"empty";document.querySelector("#save").onclick=()=>localStorage.setItem("value","saved")</script>')
+  const agent = await h.create(), results = []
+  t.after(h.ctx.on('tools/result', (exec, result) => {
+    if (exec.agent === agent && exec.name === 'apex_validate_web') results.push(result)
+  }))
+  await h.turn(agent, 'Execute only the fixed browser-path fixture.')
+  assert.equal(results.length, 1)
+  assert.equal(results[0].isError, false)
+  const result = results[0].value; removeCapture(t, result)
+  assert.equal(result.status, 'passed', result.detail)
+  assert.equal(result.measurementComplete, true)
+  assert.equal(result.cleanup, 'server-closed,browser-terminated,profile-removed')
+  const events = agent.session.snapshotEvents()
+  assert.equal(events.filter(e => e.type === 'approval/asked').length, 0)
+  assert.equal(events.filter(e => e.type === 'user/message' && e.data.source?.kind === 'apex-browser-guidance').length, 1)
+  assert.ok(h.adapter.requests[1].messages.some(m => m.source?.kind === 'apex-browser-guidance'))
+  assert.equal(h.adapter.requests.length, 3, 'guidance does not create another turn or retry')
 })
 
 test('clock input commits input/change once and reports deferred DOM updates without retrying failed checks', options, async t => {
@@ -527,6 +730,70 @@ test('screenshot storage failure preserves completed rAF measurements without cl
   assert.match(result.cleanup, /server-closed,browser-terminated,profile-removed/)
 })
 
+test('failed screenshot writes clean only the directory created for that capture', options, async t => {
+  for (const replaced of [false, true]) await t.test(replaced ? 'replaced' : 'unchanged', async t => {
+    const h = await browserFixture(t), retained = await fixture(t)
+    await writeFile(join(h.root, 'index.html'), '<p>Capture fixture</p>')
+    const originalWrite = fs.writeFile, captures = []
+    t.mock.method(fs, 'writeFile', async function (path, ...args) {
+      if (basename(String(path)) !== 'capture.png') return originalWrite.call(this, path, ...args)
+      const directory = dirname(path)
+      captures.push(directory)
+      t.after(() => rm(directory, { recursive: true, force: true }))
+      if (replaced) {
+        await rename(directory, join(retained.root, String(captures.length)))
+        await mkdir(directory)
+        await originalWrite(join(directory, 'sentinel'), 'preserved')
+      }
+      throw new Error('fixture capture write failure')
+    })
+    const result = await h.run(base)
+    assert.ok(captures.length > 0)
+    for (const directory of captures) {
+      if (replaced) assert.equal(await readFile(join(directory, 'sentinel'), 'utf8'), 'preserved')
+      else await assert.rejects(lstat(directory), { code: 'ENOENT' })
+    }
+    assert.match(result.detail, /fixture capture write failure/)
+    assert.equal(result.status, replaced ? 'blocked' : 'failed')
+    assert.equal(result.measurementComplete, false)
+    assert.equal(result.screenshotPath, '')
+    assert.match(result.cleanup, replaced ? /failed-capture-remove-failed/ : /failed-capture-removed/)
+    if (replaced) assert.match(result.detail, /identity changed/)
+  })
+})
+
+test('cancelled screenshot cleanup preserves replaced directories', options, async t => {
+  for (const replaced of [false, true]) await t.test(replaced ? 'replaced' : 'unchanged', async t => {
+    const h = await browserFixture(t), retained = await fixture(t)
+    await writeFile(join(h.root, 'index.html'), '<p>Cancel after capture</p>')
+    const controller = new AbortController(), originalWrite = fs.writeFile, warnings = []
+    let capture
+    t.mock.method(fs, 'writeFile', async function (path, ...args) {
+      const value = await originalWrite.call(this, path, ...args)
+      if (basename(String(path)) === 'capture.png') {
+        capture = dirname(path)
+        t.after(() => rm(capture, { recursive: true, force: true }))
+        if (replaced) {
+          await rename(capture, join(retained.root, 'original'))
+          await mkdir(capture)
+          await originalWrite(join(capture, 'sentinel'), 'preserved')
+        }
+        controller.abort(new Error('fixture stop after capture'))
+      }
+      return value
+    })
+    const agent = { session: { header: { cwd: h.root } } }
+    const ctx = { subprocess: h.ctx.subprocess, logger: { warn: message => warnings.push(message) } }
+    await assert.rejects(validation.runValidation(ctx, base, { agent, signal: controller.signal }), /fixture stop after capture/)
+    assert.ok(capture)
+    if (replaced) {
+      assert.equal(await readFile(join(capture, 'sentinel'), 'utf8'), 'preserved')
+      assert.ok(warnings.some(w => w.includes('unreturned-capture-remove-failed')))
+      assert.ok(warnings.some(w => w.includes(capture) && w.includes('ownership')))
+    } else await assert.rejects(lstat(capture), { code: 'ENOENT' })
+  })
+})
+
 test('post-action diagnostics failure preserves a completed before-actions rAF sample', options, async t => {
   const h = await nativeHarness(); t.after(h.close)
   await writeFile(join(h.cwd, 'index.html'), `<!doctype html><p>Measured before diagnostics</p>
@@ -566,9 +833,9 @@ test('completed sampling with no callbacks reports measured zero and an unmeasur
 test('artifact mutation during an actual run invalidates its certification', options, async t => {
   const h = await nativeHarness(); t.after(h.close)
   const file = join(h.cwd, 'index.html'); await writeFile(file, '<!doctype html><p>before</p>')
-  const spawn = h.ctx.subprocess.spawn
+  const spawn = h.apexRuntime.subprocess.spawn
   let mutation
-  t.mock.method(h.ctx.subprocess, 'spawn', function (request) {
+  t.mock.method(h.apexRuntime.subprocess, 'spawn', function (request) {
     mutation = writeFile(file, '<!doctype html><p>after</p>')
     return spawn.call(this, request)
   })

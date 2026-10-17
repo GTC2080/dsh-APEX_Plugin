@@ -1,3 +1,4 @@
+import { sliceText } from './text.mjs'
 // Trusted one-operation worker: native filesystem mechanics execute under the same kernel file policy as PTC.
 const [{ Context }, { default: LocalFileSystem }] = await Promise.all(process.argv.slice(2, 4).map(path => import(path)))
 const chunks = []
@@ -12,7 +13,7 @@ try {
   const value = await ctx.fs[request.method](request.target, request.body, request.expected)
   response = { ok: true, value }
 } catch (error) {
-  response = { ok: false, code: error.code ?? 'FS_IO_ERROR', message: String(error.message).slice(0, 2048) }
+  response = { ok: false, code: error.code ?? 'FS_IO_ERROR', message: sliceText(String(error.message), 0, 2048) }
 } finally {
   await fiber.dispose()
 }

@@ -16,6 +16,34 @@ async function until(check) {
   assert.fail('Fixture did not settle within 5 seconds')
 }
 
+// The official Harness no longer ships the removed settings-file provider.
+// Use the same Loader entry.update path as the settings live-config fixture,
+// while keeping the real native shell as the service under observation.
+async function liveShellConfig(h) {
+  const shell = h.ctx.shell
+  const { resolveConfig } = await native('cordis')
+  const entry = h.loaderEntries.get(process.platform === 'win32' ? 'dsh-pwsh-sandbox' : 'dsh-bash-sandbox')
+  assert.ok(entry, 'native shell must be mounted through the official Loader')
+  const initial = { ...(entry.options.config ?? {}) }
+  let current = initial
+  const replace = async next => {
+    const fiber = entry.fiber
+    resolveConfig(fiber.runtime, fiber.ctx.waterfall(fiber, 'internal/config', next, () => next))
+    await entry.update({ config: next })
+    await entry.fiber.await()
+    h.ctx.emit('app-boot/config-reload')
+  }
+  return {
+    async update(patch) {
+      current = { ...current, ...patch }
+      await replace(current)
+    },
+    async dispose() {
+      await replace(initial)
+    },
+  }
+}
+
 test('macOS Bash cannot signal an outside sentinel, but can stop its own child', {
   ...options, skip: !harnessAvailable || process.platform !== 'darwin',
 }, async t => {
@@ -56,7 +84,7 @@ test('macOS Bash cannot signal an outside sentinel, but can stop its own child',
   }
 })
 
-test('native job cancellation and foreground timeout retain owned cleanup and real exit semantics', {
+test('native job cancellation and foreground timeout retain owned cleanup and promotion semantics', {
   ...options, skip: !harnessAvailable || process.platform !== 'darwin',
 }, async t => {
   const h = await nativeHarness(); t.after(h.close)
@@ -81,8 +109,11 @@ test('native job cancellation and foreground timeout retain owned cleanup and re
   const output = await call(h, parent, 'job_output', { job_id: job.jobId, wait: true, timeout_ms: 5000 })
   assert.equal(output.job.status, 'killed')
   const timed = await call(h, parent, 'bash', { command: 'sleep 30', description: 'Short deadline fixture', timeoutMs: 80 })
-  assert.equal(timed.timedOut, true); assert.equal(timed.signal, 'SIGTERM')
-  assert.equal(timed.exitCode, null)
+  assert.equal(timed.kind, 'promoted')
+  assert.equal(timed.timeoutMs, 80)
+  await call(h, parent, 'job_kill', { job_id: timed.jobId })
+  const timedOutput = await call(h, parent, 'job_output', { job_id: timed.jobId, wait: true, timeout_ms: 5000 })
+  assert.equal(timedOutput.job.status, 'killed')
   const controller = new AbortController()
   controller.abort(new Error('pre-aborted fixture'))
   await assert.rejects(call(h, parent, 'bash', { command: 'echo should-not-run', description: 'Pre-aborted fixture' }, controller.signal))
@@ -102,20 +133,24 @@ test('cancelled Lead stays stopped after real child settlement, late notices and
   const child = (await call(h, parent, 'spawn_teammate', {
     name: 'waiting', description: 'Cancelable child', prompt: 'Wait for cancellation.',
   })).member
+  const childMember = () => h.ctx.agentTeams.listMembers(parent).find(member => member.name === child.target)
+  const childId = childMember()?.id
+  assert.equal(typeof child.target, 'string')
+  assert.ok(typeof childId === 'string' && childId.length > 0, 'spawned teammate must have an opaque native session id')
   const turn = h.turn(parent, 'Wait for the teammate.')
   await until(() => started === 2)
   parent.cancel({ kind: 'user' }, { keepInbox: true })
   await call(h, parent, 'interrupt_agent', { target: 'waiting' })
   waiting = false
   await turn
-  await until(() => !h.ctx.agents.get(child.id))
+  await until(() => !h.ctx.agents.get(childId))
   await parent.whenIdle()
   assert.equal(h.adapter.requests.length, 2, 'child settlement must not spend another model request')
   assert.ok(parent.session.snapshotEvents().some(e => e.type === 'agent/inbox/spliced'
     && e.data.inserted.some(m => m.source.kind === 'subagent-settled')), 'use the real settlement path')
   const { createUserMessage } = await native('dsh-llm')
   const late = () => createUserMessage({ content: [{ type: 'text', text: 'Late child notice' }],
-    source: { kind: 'subagent-settled', form: 'notice', summary: 'Late settlement', senderSessionId: child.id } })
+    source: { kind: 'subagent-settled', form: 'notice', summary: 'Late settlement', senderSessionId: childId } })
   parent.followup(late()); await parent.whenIdle()
   assert.equal(h.adapter.requests.length, 2, 'late notice must stay stopped')
   await h.dispose(parent); parent = await h.resume(parent.id)
@@ -137,7 +172,7 @@ test('late native job notices cannot resume cancellation, and a racing real user
   }); t.after(h.close)
   const parent = await h.create()
   let finishJob
-  h.ctx.jobs.start({ kind: 'fixture', label: 'Delayed settlement', owner: parent, run: () => ({
+  h.ctx.jobs.start({ kind: 'fixture', label: 'Delayed settlement', owner: parent.id, run: () => ({
     cancel() { finishJob({ status: 'killed' }) },
     done: new Promise(resolve => { finishJob = resolve }),
   }) })
@@ -148,7 +183,7 @@ test('late native job notices cannot resume cancellation, and a racing real user
   finishJob({ status: 'completed' }); await delay(20); await parent.whenIdle()
   assert.equal(h.adapter.requests.length, 1)
   assert.ok(parent.session.snapshotEvents().some(e => e.type === 'agent/inbox/spliced'
-    && e.data.inserted.some(m => m.source.kind === 'plugin' && m.source.plugin === 'tool-jobs')))
+    && e.data.inserted.some(m => m.source.kind === 'tool-jobs')))
   const { createUserMessage } = await native('dsh-llm')
   const notice = createUserMessage({ content: [{ type: 'text', text: 'Another delayed notice' }],
     source: { kind: 'subagent-settled', form: 'notice', summary: 'Done', senderSessionId: 'fixture-child' } })
@@ -186,7 +221,7 @@ test('unexpected macOS runner fails closed without changing the original command
 }, async t => {
   const h = await nativeHarness(); t.after(h.close)
   const agent = await h.create()
-  t.mock.method(h.ctx.sandbox, 'confine', () => ({ argv: ['unexpected-runner', 'bash', '-c', 'false'] }))
+  t.mock.method(h.apexRuntime.sandbox, 'confine', () => ({ argv: ['unexpected-runner', 'bash', '-c', 'false'] }))
   const args = { command: 'echo must-not-run', description: 'Unsupported runner fixture' }, original = structuredClone(args)
   await assert.rejects(call(h, agent, 'bash', args), /refusing unprotected execution/)
   assert.deepEqual(args, original)
@@ -197,9 +232,9 @@ test('async confinement stays inside native Bash and stdin deadlines and cancell
 }, async t => {
   const h = await nativeHarness(); t.after(h.close)
   const agent = await h.create()
-  const original = h.ctx.sandbox.confine.bind(h.ctx.sandbox)
+  const original = h.apexRuntime.sandbox.confine.bind(h.apexRuntime.sandbox)
   let preparationSignal, preparationDelay = 10
-  t.mock.method(h.ctx.sandbox, 'confine', async (argv, policy, signal) => {
+  t.mock.method(h.apexRuntime.sandbox, 'confine', async (argv, policy, signal) => {
     preparationSignal = signal
     await delay(preparationDelay, undefined, { signal })
     return original(argv, policy, signal)
@@ -212,7 +247,7 @@ test('async confinement stays inside native Bash and stdin deadlines and cancell
     const result = await call(h, agent, name, args)
     assert.equal(result.exitCode, 0); assert.equal(result.stdout.text, 'prepared')
     preparationDelay = 1000
-    const spawn = t.mock.method(h.ctx.subprocess, 'spawn')
+    const spawn = t.mock.method(h.apexRuntime.subprocess, 'spawn')
     const timed = await call(h, agent, name, { ...args, timeoutMs: 20 })
     assert.equal(timed.timedOut, true); assert.equal(timed.aborted, false)
     assert.equal(preparationSignal.aborted, true)
@@ -220,29 +255,31 @@ test('async confinement stays inside native Bash and stdin deadlines and cancell
     const controller = new AbortController()
     const pending = call(h, agent, name, args, controller.signal)
     await delay(10); controller.abort(new Error('cancel preparation'))
-    await assert.rejects(pending, /cancel preparation/)
+    await assert.rejects(pending, error => /cancel preparation|tool call aborted/.test(String(error)))
     assert.equal(preparationSignal.aborted, true)
     assert.equal(spawn.mock.callCount(), 0, 'cancelled preparation must not start a process')
     spawn.mock.restore()
   }
 })
 
-test('multiple APEX sessions reuse one native Shell settings namespace and its live updates', {
+test('multiple APEX sessions reuse one native Shell config and its live updates', {
   ...options, skip: !harnessAvailable || process.platform !== 'darwin',
 }, async () => {
   const h = await nativeHarness()
-  let settings
+  let live
   try {
-    settings = h.ctx.plugin((await native('dsh-settings-file')).default, { path: join(h.root, 'settings.yaml'), watch: false })
-    await settings.await()
+    live = await liveShellConfig(h)
     const parent = await h.create(); await h.create('second-apex')
-    assert.equal(h.ctx.settings.describe().filter(row => row.ns === 'shell').length, 1)
-    await h.ctx.settings.update('shell', { timeoutMs: 70 })
+    await live.update({ timeoutMs: 70 })
     const result = await call(h, parent, 'bash', { command: 'sleep 30', description: 'Inherited native timeout setting' })
-    assert.equal(result.timeoutMs, 70); assert.equal(result.timedOut, true)
+    assert.equal(result.kind, 'promoted')
+    assert.equal(result.timeoutMs, 70)
+    await call(h, parent, 'job_kill', { job_id: result.jobId })
+    const settled = await call(h, parent, 'job_output', { job_id: result.jobId, wait: true, timeout_ms: 5000 })
+    assert.equal(settled.job.status, 'killed')
     assert.equal(h.adapter.requests.length, 0)
   } finally {
-    if (settings) await settings.dispose()
+    if (live) await live.dispose()
     await h.close()
   }
 })
